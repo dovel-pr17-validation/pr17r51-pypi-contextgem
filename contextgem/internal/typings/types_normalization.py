@@ -1,0 +1,106 @@
+# SPDX-FileCopyrightText: Shcherbak AI AS
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Utilities for normalizing Python type annotations into consistent forms.
+
+Provides functions to standardize type hints across different typing notations
+(e.g., converting typing.List[str] to list[str]), while ensuring compatibility
+with JSON serialization requirements.
+"""
+
+from __future__ import annotations
+
+from functools import reduce
+from types import UnionType
+from typing import Any, Dict, List, Union, get_args, get_origin  # noqa: UP035
+
+
+def _normalize_type_annotation(tp: Any) -> Any:
+    """
+    Normalizes type annotations to use consistent forms, converting
+    between typing module versions and built-in generics.
+
+    For example, typing.List[str] becomes list[str], typing.Dict[str, int]
+    becomes dict[str, int], etc.
+
+    Note: Only JSON-serializable types are supported (int, float, str, bool,
+    None, list, dict). Tuples and sets are not supported as they are not
+    JSON-serializable.
+
+    :param tp: Type annotation to normalize
+    :return: Normalized type annotation
+    :raises ValueError: If a non-JSON-serializable type is encountered
+    """
+    # Handle basic types
+    if tp in (str, int, float, bool, type(None)):
+        return tp
+
+    # Handle direct typing module types (without args)
+    if tp is List:  # noqa: UP006
+        return list
+    if tp is Dict:  # noqa: UP006
+        return dict
+
+    # Get origin and arguments of the type
+    origin = get_origin(tp)
+    args = get_args(tp)
+
+    # No origin or args means it's a plain type
+    if origin is None:
+        return tp
+
+    # Direct mapping for common roots
+    origin_map = {
+        List: list,  # noqa: UP006
+        Dict: dict,  # noqa: UP006
+    }
+
+    # Unsupported types check
+    if origin in (tuple, set) or origin.__name__ in ("Tuple", "Set"):
+        raise ValueError(
+            f"Type {tp} is not supported as it's not JSON-serializable. "
+            f"Use list instead of tuple/set in JSON structures."
+        )
+
+    # Always standardize origin to built-in equivalent if possible
+    normalized_origin = origin_map.get(origin, origin)
+
+    # Handle specific collection types
+    if normalized_origin is list:
+        if not args:
+            return list
+        if len(args) != 1:
+            raise ValueError(
+                f"List type annotation must have exactly one type argument, got {len(args)}: {tp}"
+            )
+        return list[_normalize_type_annotation(args[0])]  # ty: ignore[invalid-type-form]
+
+    elif normalized_origin is dict:
+        if not args or len(args) != 2:
+            return dict
+        return dict[
+            _normalize_type_annotation(args[0]), _normalize_type_annotation(args[1])  # ty: ignore[invalid-type-form]
+        ]
+
+    elif origin is Union or isinstance(tp, UnionType):
+        # `Optional[X]` is `Union[X, None]`, and a union has at least two arguments
+        normalized_args = tuple(_normalize_type_annotation(arg) for arg in args)
+        return reduce(lambda a, b: a | b, normalized_args)
+
+    # For other types with origin/args, keep the general structure
+    # but normalize the arguments
+    if args:
+        normalized_args = tuple(_normalize_type_annotation(arg) for arg in args)
+        try:
+            return (
+                normalized_origin[normalized_args]
+                if len(normalized_args) == 1
+                else normalized_origin.__getitem__(normalized_args)
+            )
+        except (TypeError, AttributeError):
+            # If we can't create a new generic with normalized args, keep the original
+            return tp
+
+    # Fallback
+    return tp

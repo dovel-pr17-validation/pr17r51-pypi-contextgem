@@ -1,0 +1,193 @@
+# A hook without stages of its own runs at the commit, not again at the
+# commit-msg stage, where the package build and the README update would repeat.
+default_stages: [pre-commit]
+
+# Every hook runs a tool of uv.lock or of package-lock.json, none a repository
+# that pre-commit installs: it would resolve the dependencies of the repository
+# afresh, past the cooldown of the lockfiles and their advisory check.
+repos:
+  # The hooks of pre-commit-hooks, from its package
+  - repo: local
+    hooks:
+      # Not on what goes into the requests that the VCR cassettes match byte
+      # for byte (the prompt templates of the package, the test documents, the
+      # usage examples, the evaluation cases), nor on the signed contributor
+      # agreements, which are kept verbatim.
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+        entry: uv run trailing-whitespace-fixer
+        language: system
+        types: [text]
+        exclude: ^(contextgem|tests|dev/usage_examples|dev/evals|\.github/contributors)/
+      - id: end-of-file-fixer
+        name: fix end of files
+        entry: uv run end-of-file-fixer
+        language: system
+        types: [text]
+        exclude: ^(contextgem|tests|dev/usage_examples|dev/evals|\.github/contributors)/
+      - id: check-yaml
+        name: check yaml
+        entry: uv run check-yaml
+        language: system
+        types: [yaml]
+      - id: check-toml
+        name: check toml
+        entry: uv run check-toml
+        language: system
+        types: [toml]
+
+  # These run from the project environment: uv.lock is their only version pin.
+  - repo: local
+    hooks:
+      # Not on the usage examples, which the documentation shows.
+      - id: add-file-headers
+        name: add SPDX file headers
+        entry: uv run python dev/add_file_headers.py
+        language: system
+        types: [python]
+        exclude: ^dev/usage_examples/
+
+      # The description is the page's line in llms.txt and its meta description.
+      - id: docs-page-description
+        name: docs pages have a meta description
+        entry: '^\.\. meta::\n   :description: \S'
+        language: pygrep
+        args: [--multiline, --negate]
+        files: ^docs/source/.*\.rst$
+
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --force-exclude --fix
+        language: system
+        types_or: [python, pyi, jupyter]
+        require_serial: true
+
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi, jupyter]
+        require_serial: true
+
+      - id: bandit
+        name: bandit (contextgem)
+        entry: uv run bandit -r contextgem
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: bandit
+        name: bandit (tests/dev)
+        entry: uv run bandit -r tests dev --skip B101
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # No value of .env, e.g. an API key of the tests, in a tracked file: in
+      # the staged files at a commit, and in all the tracked files with
+      # --all-files. Without a .env file, e.g. in CI, it fails on a tracked env
+      # file only. pre-commit passes only the files that have every tag of
+      # `types`, by default `file`, which a symbolic link lacks.
+      - id: omerta
+        name: omerta (no value of .env in the tracked files)
+        entry: uv run omerta check
+        language: system
+        types: []
+        types_or: [file, symlink]
+
+      - id: ty
+        name: ty
+        entry: uv run ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: interrogate
+        name: interrogate
+        entry: uv run interrogate
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # Imports against declared dependencies, so a change to either runs it.
+      - id: deptry
+        name: deptry
+        entry: uv run deptry .
+        language: system
+        types_or: [python, toml]
+        pass_filenames: false
+
+      # The GitHub workflows, for what an attacker could reach through them: a
+      # checkout that leaves its token in the workspace, a value of the event
+      # written into a script, a trigger that runs on untrusted code. Offline:
+      # the audits that ask GitHub's API are left out
+      - id: zizmor
+        name: zizmor
+        entry: uv run zizmor --offline --no-progress .github/workflows
+        language: system
+        files: ^\.github/workflows/
+        pass_filenames: false
+
+      - id: uv-lock
+        name: uv lock check
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+
+      # The ranges admit the latest releases of more than a week ago and the
+      # lockfiles hold them, but for the packages in its EXCEPTIONS, and no
+      # locked version, nor uv (the workflows' UV_VERSION and the one that runs
+      # it), has an advisory at osv.dev, but for its ACCEPTED_ADVISORIES. At each
+      # commit, as a release or an advisory comes out without a change to a
+      # file, and asking PyPI, npm and osv.dev. CI skips it (SKIP), where its
+      # result would depend on the day, not on the commit. Verbose, for its
+      # warnings, which do not fail it.
+      - id: latest-versions
+        name: dependencies at their latest versions, without advisories
+        entry: uv run python dev/check_latest_versions.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
+      - id: update-readme
+        name: Update README.md
+        entry: uv run python dev/populate_project_readme.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: package-check
+        name: package check (uv build + twine check)
+        entry: uv run python dev/check_package.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: commitizen
+        name: commitizen check
+        entry: uv run cz check --allow-abort --commit-msg-file
+        language: system
+        stages: [commit-msg]
+
+  # The Node of the development tools, with markdownlint-cli2 installed from
+  # package-lock.json (npm ci)
+  - repo: local
+    hooks:
+      - id: markdownlint-cli2
+        name: markdownlint-cli2
+        entry: node node_modules/markdownlint-cli2/markdownlint-cli2-bin.mjs
+        language: system
+        types: [markdown]
+
+  # The tests of the Claude Code hook that keeps the agents' browser files in
+  # one folder, and of the settings that start it, with Node's own runner: the
+  # Node that npm needs for the development tools (package.json).
+  - repo: local
+    hooks:
+      - id: claude-hooks
+        name: claude hooks tests
+        entry: node --test .claude/hooks/playwright-files.test.mjs
+        language: system
+        files: ^\.claude/(hooks/|settings\.json$)
+        pass_filenames: false

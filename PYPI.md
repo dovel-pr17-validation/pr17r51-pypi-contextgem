@@ -1,0 +1,28 @@
+# ContextGem
+
+Describe, don't prompt. ContextGem is a free, open-source framework that does the work around the models for you: you describe what to extract, and it handles the prompts, the data models, the source references and the justifications, with minimal code.
+
+**Upgrading from 0.x?** ContextGem 1.0 renames and removes classes and parameters, changes some defaults and drops Python 3.10, so code and serialized data written for 0.x may need changes. Follow the [migration guide](https://contextgem.shcherbak.ai/migration_v1/).
+
+```bash
+uv add contextgem
+```
+
+Or, with pip: `pip install -U contextgem`. To convert PDF, DOCX and other files with [Docling](https://github.com/docling-project/docling): `uv add "contextgem[docling]"`.
+
+- Generates the prompts from your descriptions of what to extract: there are no prompts to write.
+- Returns typed, validated values: text, numbers, dates, booleans, labels, ratings and JSON objects.
+- Maps each extracted item back to the paragraphs or sentences of the document that it came from, and can give the reasoning behind it.
+- Takes files converted with [Docling](https://github.com/docling-project/docling), e.g. PDF, DOCX, PPTX, XLSX and HTML, with their structure and the page of each paragraph.
+- Extracts in context: aspects, sub-aspects and concepts focus the model on the text that matters.
+- Runs as one declarative pipeline, reusable and serializable, with model routing, fallbacks and cost tracking.
+- Uses the right model for each question: cloud and local LLMs through LiteLLM where it takes reasoning, and decision models where a fast, low-cost answer is enough.
+- Gives the probability of each possible answer of a decision model, so that you set the threshold.
+- Fits into agentic workflows: extracts the metadata of documents at ingestion, runs as a tool that an agent calls, and decides the next step of a workflow, or the tools that an agent gets, with probabilities.
+- Is built for in-depth analysis of individual documents, not for cross-document querying or corpus-wide retrieval.
+
+See the [documentation](https://contextgem.shcherbak.ai) for the [quickstart](https://contextgem.shcherbak.ai/quickstart/), [how it works](https://contextgem.shcherbak.ai/how_it_works/), [decision models](https://contextgem.shcherbak.ai/decision_models/decision_models/) and [agentic workflows](https://contextgem.shcherbak.ai/agentic_workflows/), the [repository](https://github.com/shcherbak-ai/contextgem#readme) for the overview and the source, and the [changelog](https://github.com/shcherbak-ai/contextgem/blob/main/CHANGELOG.md) for the version history.
+
+For coding agents and LLMs, [llms.txt](https://contextgem.shcherbak.ai/llms.txt) indexes the documentation, with a Markdown copy of each page.
+
+Licensed under [Apache-2.0](https://github.com/shcherbak-ai/contextgem/blob/main/LICENSE).

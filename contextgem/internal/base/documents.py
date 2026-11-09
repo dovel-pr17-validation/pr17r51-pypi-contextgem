@@ -1,0 +1,978 @@
+# SPDX-FileCopyrightText: Shcherbak AI AS
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Module defining the base classes for Document class.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import itertools
+from collections.abc import Sequence
+from copy import deepcopy
+from pathlib import Path
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Self, TypeVar
+
+from pydantic import (
+    BeforeValidator,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
+
+from contextgem.internal.base.aspects import _Aspect
+from contextgem.internal.base.attrs import _AssignedInstancesProcessor
+from contextgem.internal.base.concepts import _Concept
+from contextgem.internal.base.images import _Image
+from contextgem.internal.base.paras_and_sents import _Paragraph, _Sentence
+from contextgem.internal.base.pipelines import _ExtractionPipeline
+from contextgem.internal.decorators import (
+    _disable_direct_initialization,
+    _post_init_method,
+    _timer_decorator,
+)
+from contextgem.internal.loggers import logger
+from contextgem.internal.registry import _publicize
+from contextgem.internal.typings.types import NonEmptyStr, SaTModelId
+from contextgem.internal.typings.validators import _validate_sequence_is_list
+from contextgem.internal.utils import (
+    _are_paragraphs_in_text_in_order,
+    _check_paragraphs_match_in_text,
+    _check_paragraphs_ordering_in_text,
+    _get_sat_model,
+    _is_text_content_empty,
+    _split_into_sentences,
+    _split_text_into_paragraphs,
+)
+
+
+if TYPE_CHECKING:
+    from docling_core.types.doc import DoclingDocument
+
+
+# Instance-dict keys for the lazily built paragraph/sentence position lookup caches.
+# Deliberately stored as plain instance-dict entries rather than model fields or
+# private attributes: pydantic ignores non-field `__dict__` entries in model
+# equality (see pydantic GH-7444), and `to_dict()` serializes only fields and
+# allowlisted private attributes, so the caches never affect document equality,
+# serialization, or cloning.
+_PARA_POS_CACHE_KEY = "_para_index_map"
+_SENT_POS_CACHE_KEY = "_sent_index_map"
+_POSITION_CACHE_KEYS = (_PARA_POS_CACHE_KEY, _SENT_POS_CACHE_KEY)
+
+# A paragraph or a sentence, i.e. what the references of aspects and items hold
+_ReferenceT = TypeVar("_ReferenceT", _Paragraph, _Sentence)
+
+
+def _replace_copies_with_originals(
+    reference_lists: list[list[_ReferenceT]], originals: list[_ReferenceT]
+) -> None:
+    """
+    Replaces, in each of the lists, each paragraph or sentence that is a copy of
+    one of the originals, i.e. another object with the same unique ID, with that
+    original. An object with no original of the same unique ID is left as it is.
+
+    The originals are told from their copies by identity, so the unique IDs, which
+    are slower to read, are read only when there is an object that is not
+    an original.
+
+    :param reference_lists: The lists of paragraphs or of sentences to go through.
+        They are changed in place.
+    :type reference_lists: list[list[_Paragraph]] | list[list[_Sentence]]
+    :param originals: The paragraphs or the sentences that the lists are to hold.
+    :type originals: list[_Paragraph] | list[_Sentence]
+    :return: None
+    :rtype: None
+    """
+    original_identities = {id(original) for original in originals}
+    originals_by_unique_id: dict[str, _ReferenceT] | None = None
+    for references in reference_lists:
+        for position, reference in enumerate(references):
+            if id(reference) in original_identities:
+                continue
+            if originals_by_unique_id is None:
+                originals_by_unique_id = {
+                    original.unique_id: original for original in originals
+                }
+            original = originals_by_unique_id.get(reference.unique_id)
+            if original is not None:
+                references[position] = original
+
+
+@_disable_direct_initialization
+class _Document(_AssignedInstancesProcessor):
+    """
+    Internal implementation of the Document class.
+    """
+
+    raw_text: NonEmptyStr | None = Field(
+        default=None,
+        description="Main document text as a single string (optional).",
+    )
+    paragraphs: list[_Paragraph] = Field(
+        default_factory=list,
+        description=(
+            "Paragraphs in order of appearance. Usually auto-populated from raw_text."
+        ),
+    )
+    images: list[_Image] = Field(
+        default_factory=list,
+        description="Images attached to or representing the document.",
+    )
+    aspects: Annotated[
+        Sequence[_Aspect], BeforeValidator(_validate_sequence_is_list)
+    ] = Field(
+        default_factory=list,
+        description=(
+            "Aspects attached to the document. Validated to have unique names and descriptions."
+        ),
+    )
+    concepts: Annotated[
+        Sequence[_Concept], BeforeValidator(_validate_sequence_is_list)
+    ] = Field(
+        default_factory=list,
+        description=(
+            "Concepts attached to the document. Validated to have unique names and descriptions."
+        ),
+    )  # using Sequence field with list validator for type checking
+    paragraph_segmentation_mode: Literal["newlines", "sat"] = Field(
+        default="newlines",
+        description=(
+            "Paragraph segmentation mode. 'newlines' splits by newlines; 'sat' uses a SaT model."
+        ),
+    )
+    sat_model_id: SaTModelId = Field(
+        default="sat-3l-sm",
+        description=(
+            "SaT model ID for segmentation, or a local path to a SaT model directory."
+        ),
+    )
+    pre_segment_sentences: bool = Field(
+        default=False,
+        description=(
+            "If True, sentences are segmented during initialization using the SaT model."
+        ),
+    )
+
+    # When True, top-level aspect nesting normalization is suppressed. Set only by
+    # the extraction engine on the throwaway single-aspect documents it builds from
+    # existing (already-nested) aspects, where the added aspect must keep its
+    # nesting level so it still compares equal to the instance being processed.
+    # For the same reason, the references of the aspects of such a document are
+    # not relinked (see `_relink_references`).
+    _suppress_aspect_nesting_normalization: bool = PrivateAttr(default=False)
+    # When True, the document is a throwaway one that a decision model builds from
+    # the paragraphs it refused to answer on for some aspects, for its fallback
+    # models to extract copies of these aspects from. What a fallback decision
+    # model refuses to answer on in it is passed back to that decision model,
+    # which reports what stays undecided, i.e. it is not logged for this document.
+    _for_fallback_of_refusals: bool = PrivateAttr(default=False)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """
+        Sets the attribute of an instance, with additional restrictions on specific attributes.
+
+        :param name: The name of the attribute to set.
+        :type name: str
+        :param value: The value to assign to the attribute.
+        :return: None
+        :raises ValueError: If attempting to reassign a restricted attribute
+            after it has already been assigned to a *truthy* value.
+        """
+        if name in ["raw_text", "paragraphs"] and getattr(self, name, None):
+            # Prevent raw_text/paragraphs reassignment once populated,
+            # to prevent inconsistencies in analysis.
+            raise ValueError(
+                f"The attribute `{name}` cannot be changed once populated."
+            )
+        super().__setattr__(name, value)
+
+    @property
+    def sentences(self) -> list[_Sentence]:
+        """
+        Provides access to all sentences within the paragraphs of the document by flattening
+        and combining sentences from each paragraph into a single list.
+
+        :return: A list of _Sentence objects that are contained within all paragraphs.
+        :rtype: list[_Sentence]
+        """
+        return list(itertools.chain.from_iterable(i.sentences for i in self.paragraphs))
+
+    def get_paragraph_index(self, paragraph: _Paragraph) -> int:
+        """
+        Returns the 0-based position of a paragraph in the document's ``paragraphs`` list.
+
+        Lookup is keyed by the paragraph's unique ID rather than text equality, so
+        paragraphs with identical text (e.g. duplicate clauses in a contract) resolve
+        to their specific occurrences. This makes the method suitable for locating
+        reference paragraphs (``reference_paragraphs``) returned during extraction.
+        Unique IDs are preserved by serialization, so lookups also work across
+        ``to_dict()``/``from_dict()`` round-trips.
+
+        Lookups are O(1) on average via a lazily built cache. The cache is an
+        internal implementation detail: it is validated against the live
+        document state on each hit, rebuilt when stale, and does not affect
+        document equality, serialization, or cloning.
+
+        :param paragraph: The paragraph to locate. Must be a paragraph object that
+            belongs to this document, e.g. accessed via ``document.paragraphs`` or
+            extraction references.
+        :type paragraph: _Paragraph
+        :return: 0-based index of the paragraph in ``document.paragraphs``.
+        :rtype: int
+        :raises ValueError: If the paragraph is not found in the document's paragraphs.
+        """
+        uid = paragraph.unique_id
+        index_map: dict[str, int] | None = self.__dict__.get(_PARA_POS_CACHE_KEY)
+        idx = index_map.get(uid) if index_map is not None else None
+        # Verify the cached entry against the live list, so that lookups never
+        # return stale positions (e.g. after unsupported in-place list mutations)
+        if idx is not None and not (
+            idx < len(self.paragraphs) and self.paragraphs[idx].unique_id == uid
+        ):
+            idx = None
+        if idx is None:
+            # Lazily (re)build the cache, e.g. on first use, after paragraphs
+            # have been populated, or when a cached entry went stale
+            index_map = {p.unique_id: i for i, p in enumerate(self.paragraphs)}
+            self.__dict__[_PARA_POS_CACHE_KEY] = index_map
+            idx = index_map.get(uid)
+        if idx is None:
+            raise ValueError(
+                "Paragraph was not found in the document's paragraphs. "
+                "Position lookup requires a paragraph object that belongs to this "
+                "document, e.g. one accessed via `document.paragraphs` or "
+                "extraction references."
+            )
+        return idx
+
+    def get_sentence_index(self, sentence: _Sentence) -> tuple[int, int]:
+        """
+        Returns the position of a sentence in the document as a
+        ``(paragraph_index, sentence_index)`` tuple, where ``paragraph_index`` is
+        the 0-based position of the sentence's paragraph in ``document.paragraphs``
+        and ``sentence_index`` is the 0-based position of the sentence within that
+        paragraph's ``sentences`` list.
+
+        Lookup is keyed by the sentence's unique ID rather than text equality, so
+        sentences with identical text resolve to their specific occurrences. This
+        makes the method suitable for locating reference sentences
+        (``reference_sentences``) returned during extraction. Unique IDs are
+        preserved by serialization, so lookups also work across
+        ``to_dict()``/``from_dict()`` round-trips. The returned tuples sort in
+        document order.
+
+        Lookups are O(1) on average via a lazily built cache. The cache is an
+        internal implementation detail: it is validated against the live
+        document state on each hit, rebuilt when stale, and does not affect
+        document equality, serialization, or cloning.
+
+        :param sentence: The sentence to locate. Must be a sentence object that
+            belongs to this document's paragraphs, e.g. accessed via
+            ``paragraph.sentences`` or extraction references.
+        :type sentence: _Sentence
+        :return: ``(paragraph_index, sentence_index)`` position of the sentence.
+        :rtype: tuple[int, int]
+        :raises ValueError: If the sentence is not found in the document's paragraphs.
+        """
+        uid = sentence.unique_id
+        index_map: dict[str, tuple[int, int]] | None = self.__dict__.get(
+            _SENT_POS_CACHE_KEY
+        )
+        pos = index_map.get(uid) if index_map is not None else None
+        # Verify the cached entry against the live lists, so that lookups never
+        # return stale positions (e.g. after unsupported in-place list mutations)
+        if pos is not None:
+            para_idx, sent_idx = pos
+            if not (
+                para_idx < len(self.paragraphs)
+                and sent_idx < len(self.paragraphs[para_idx].sentences)
+                and self.paragraphs[para_idx].sentences[sent_idx].unique_id == uid
+            ):
+                pos = None
+        if pos is None:
+            # Lazily (re)build the cache, e.g. on first use, after sentences
+            # have been segmented, or when a cached entry went stale
+            index_map = {
+                s.unique_id: (para_idx, sent_idx)
+                for para_idx, p in enumerate(self.paragraphs)
+                for sent_idx, s in enumerate(p.sentences)
+            }
+            self.__dict__[_SENT_POS_CACHE_KEY] = index_map
+            pos = index_map.get(uid)
+        if pos is None:
+            hint = (
+                " Note that the document's paragraphs have no sentences segmented yet."
+                if not any(p.sentences for p in self.paragraphs)
+                else ""
+            )
+            raise ValueError(
+                "Sentence was not found in the document's paragraphs. "
+                "Position lookup requires a sentence object that belongs to this "
+                "document, e.g. one accessed via `paragraph.sentences` or "
+                f"extraction references.{hint}"
+            )
+        return pos
+
+    @_timer_decorator(
+        "Document initialization",
+    )
+    @_post_init_method
+    def _post_init(self, context: Any, /):
+        """
+        Post-initialization method that handles document text setup and segmentation.
+
+        This method performs two key operations:
+        1. Sets raw_text from paragraphs if raw_text is not provided
+        2. Segments document text into paragraphs and optionally sentences
+
+        :param context: Pydantic context (unused).
+        :type context: Any
+        """
+        self._set_text_from_paras()
+        self._segment_document_text()
+
+    def _normalize_top_level_aspect_nesting(self) -> None:
+        """
+        Normalizes the nesting levels of the document's top-level aspects to 0
+        (propagating to sub-aspects).
+
+        Aspects attached to a document are top-level. An aspect previously used
+        as a sub-aspect carries a non-zero ``_nesting_level``; left unchanged,
+        that stale level prevents assigning sub-aspects to it and breaks
+        nesting-level validation during extraction. Runs on construction and on
+        every aspect (re)assignment via the post-validation hook, so all
+        user-facing paths (constructor, ``aspects`` setter, ``add_aspects``,
+        ``assign_pipeline``) are covered.
+
+        Skipped when ``_suppress_aspect_nesting_normalization`` is set, i.e. on
+        the throwaway single-aspect documents the extraction engine builds from
+        already-nested aspects — those add an existing sub-aspect and rely on it
+        comparing equal (including ``_nesting_level``) to the instance being
+        processed.
+
+        :return: None
+        :rtype: None
+        """
+        if self._suppress_aspect_nesting_normalization:
+            return
+        for aspect in self.aspects:
+            if aspect._nesting_level != 0:
+                aspect._reset_nesting_levels(0)
+
+    def assign_pipeline(
+        self,
+        pipeline: _ExtractionPipeline,
+        overwrite_existing: bool = False,
+    ) -> Self:
+        """
+        Assigns a given pipeline to the document. The method deep-copies the input pipeline
+        to prevent any modifications to the state of aspects or concepts in the original pipeline.
+        If the aspects or concepts are already associated with the document, an error is raised
+        unless the `overwrite_existing` parameter is explicitly set to `True`.
+
+        :param pipeline: The ExtractionPipeline object to attach to the document.
+        :type pipeline: _ExtractionPipeline
+        :param overwrite_existing: A boolean flag. If set to True, any existing aspects and
+            concepts assigned to the document will be overwritten by the new pipeline.
+            Defaults to False.
+        :type overwrite_existing: bool
+        :return: Returns the current instance of the document after assigning the pipeline.
+        :raises ValueError: If the document already has aspects or concepts, and
+            `overwrite_existing` is not set to `True`.
+        """
+        if (self.aspects or self.concepts) and not overwrite_existing:
+            raise ValueError(
+                "Document already has aspects and concepts assigned. "
+                "Use `overwrite_existing=True` to overwrite existing aspects and concepts "
+                "with the pipeline."
+            )
+        extraction_pipeline = deepcopy(
+            pipeline
+        )  # deep copy to avoid aspect/concept state modification of the pipeline
+        self.aspects = extraction_pipeline.aspects
+        self.concepts = extraction_pipeline.concepts
+        logger.info("Pipeline assigned to the document")
+        return self
+
+    @classmethod
+    def from_dict(cls, obj_dict: dict[str, Any]) -> Self:
+        """
+        Reconstructs a document from its dictionary representation.
+
+        This method deserializes a dictionary containing the document's attributes
+        and values into a new document, including its paragraphs, sentences, images,
+        aspects, concepts and extracted items.
+
+        The serialized data stores each reference paragraph and reference sentence
+        of the aspects and of the extracted items on its own. In the restored
+        document, they are the paragraphs and sentences of the document itself,
+        i.e. the same objects as in ``document.paragraphs``, as they are when
+        the aspects and concepts are extracted. A reference that the document has
+        no paragraph or sentence with the same unique ID for is restored as
+        a separate object.
+
+        :param obj_dict: Dictionary containing the serialized document data.
+        :type obj_dict: dict[str, Any]
+        :return: A new document with restored attributes.
+        :rtype: Self
+        """
+        document = super().from_dict(obj_dict)
+        document._relink_references()
+        return document
+
+    @classmethod
+    def from_docling(cls, docling_document: DoclingDocument, **kwargs: Any) -> Self:
+        """
+        Creates a document from a file converted with Docling.
+
+        `Docling <https://github.com/docling-project/docling>`_ converts files such as
+        PDF, DOCX, PPTX, XLSX and HTML into a ``DoclingDocument``, which holds the
+        text, the tables and the pictures of the file, with their structure and
+        their place on the page. The supported formats, and what some of them need,
+        e.g. LibreOffice for DOC, XLS, PPT and RTF files, are listed in
+        :ref:`docling-formats-label`. This method makes a paragraph of each
+        piece of text in the body of the Docling document, in reading order:
+
+        - The title, the headings, the paragraphs, the list items, the captions,
+          the footnotes, the code and the formulas are paragraphs of their own.
+          The text of a numbered list item starts with its number.
+        - A table is a paragraph with the headers of its columns, if it has them,
+          followed by a paragraph for each row, with each value after the header
+          of its column, e.g. ``Service: Hosting; Monthly fee: 1,200 EUR``.
+          A cell with paragraphs, a list or checkboxes in it, e.g. in a DOCX or
+          HTML file, gives their text, a numbered item after its number and
+          a checkbox with its state, e.g. ``Tea (checked)``. A table or a picture
+          in a cell is converted after the table, and the cell gives its caption.
+        - Each form field is a paragraph with its key and its value.
+        - The pictures are attached as images, if the Docling document has image
+          data for them. For a PDF file, convert it with
+          ``generate_picture_images=True`` in the PDF pipeline options of Docling.
+        - For an image file, e.g. a scan, whose text Docling reads with OCR, the
+          image of each page is attached too, before the pictures, so that a model
+          can read the image itself, e.g. for a concept of the ``"multimodal"``
+          modality. Convert it with ``generate_page_images=True`` in the pipeline
+          options of the image format of Docling.
+        - The transcript of an audio or a video file is a paragraph for each of its
+          segments, and the frames that Docling samples from a video are attached
+          as images.
+
+        The additional context of each paragraph says what the paragraph is, e.g.
+        ``List item`` or ``Table row``, and gives the headings of its section, e.g.
+        ``List item; Section: 3. Fees > 3.1 Invoices``. It is sent to the models
+        together with the paragraph (see :ref:`paragraph-additional-context`).
+
+        A paragraph that is not running text, i.e. the title, a heading, a table
+        header or row, a form field or a key-value pair, code, a formula,
+        a checkbox or an entry of a list of references, is one sentence: its whole
+        text. The other paragraphs are split into sentences with the SaT model of
+        the document when sentences are needed, e.g. for an aspect with
+        ``reference_depth="sentences"``.
+
+        The ``page_numbers`` of each paragraph are the numbers of the pages that its
+        text is on, and its sentences have them too. The ``reference_page_numbers``
+        of an aspect or of an extracted item are then the pages of its references,
+        e.g. to cite them. For a presentation, the pages are the slides, and for
+        a spreadsheet, the sheets. They are empty for the formats without pages,
+        e.g. DOCX and HTML.
+
+        The custom data of each paragraph and image holds, under the key
+        ``"docling"``, the reference of the Docling item it is made from
+        (``self_ref``, e.g. ``"#/texts/12"``), the label of that item (``label``,
+        e.g. ``"list_item"``), and its provenance (``prov``): for each part of the
+        item, the number of its page (``page_no``) and its bounding box on the page
+        (``bbox``). A paragraph made from a table row also has the index of the row
+        in the table (``row_index``). The provenance is empty for the formats
+        without pages, e.g. DOCX and HTML. A segment of a transcript, a cue of
+        a subtitle file, or a frame of a video holds its start and end time in
+        seconds (``source``), and the image of a page its reference
+        (``"#/pages/1"``) and the label ``"page"``.
+
+        Page headers and footers, comments, the speaker notes of a presentation,
+        hidden slides and sheets, and the text found inside pictures are not
+        converted.
+
+        Requires the ``docling`` extra, which installs Docling:
+        ``uv add "contextgem[docling]"``. A Docling document converted elsewhere,
+        e.g. loaded from JSON, needs only ``docling-core``.
+
+        :param docling_document: The document converted with Docling, e.g.
+            ``DocumentConverter().convert(source).document``.
+        :type docling_document: DoclingDocument
+        :param kwargs: Other attributes of the document, e.g. ``aspects``,
+            ``concepts`` or ``sat_model_id``. The ``raw_text``, the ``paragraphs``
+            and the ``images`` of the document are made from the Docling document.
+        :type kwargs: Any
+        :return: A new document with the paragraphs and the images of the Docling
+            document.
+        :rtype: Self
+        :raises ImportError: If docling-core, which the ``docling`` extra installs,
+            is not installed, or is older than the version that the method needs,
+            e.g. with an older Docling installed without the extra.
+        :raises TypeError: If ``docling_document`` is not a ``DoclingDocument``, or
+            if ``raw_text``, ``paragraphs`` or ``images`` is passed.
+        :raises ValueError: If the body of the Docling document has no text and no
+            images.
+        """
+        reserved = sorted({"raw_text", "paragraphs", "images"} & kwargs.keys())
+        if reserved:
+            raise TypeError(
+                f"`{'`, `'.join(reserved)}` cannot be passed to from_docling(): "
+                f"the text, the paragraphs and the images of the document are made "
+                f"from the Docling document."
+            )
+        # docling-core is an optional dependency, imported only for the conversion
+        from contextgem.internal.converters.docling import (
+            _convert_docling_document,
+        )
+
+        paragraphs, images = _convert_docling_document(docling_document)
+        return cls(paragraphs=paragraphs, images=images, **kwargs)
+
+    def _segment_document_text(self) -> None:
+        """
+        If no paragraphs are provided, but text exists, segments paragraphs in text,
+        creates _Paragraph instances, and assigns them on the document.
+        The ``paragraph_segmentation_mode`` value determines whether the paragraphs
+        will be segmented by newlines or using a SaT model.
+
+        If ``pre_segment_sentences`` is True and paragraphs exist, segments sentences
+        in paragraphs that don't have sentences already assigned.
+        Sentences are segmented using the SaT model.
+
+        Does nothing if only images are provided without text or paragraphs.
+        """
+
+        if self.raw_text and not self.paragraphs:
+            # Segment paragraphs in text, if text provided without paragraphs
+            logger.info(
+                "Text is being segmented into paragraphs, as no Paragraph instances were provided..."
+            )
+            if self.paragraph_segmentation_mode == "newlines":
+                paragraphs = _split_text_into_paragraphs(self.raw_text)
+            elif self.paragraph_segmentation_mode == "sat":
+                try:
+                    paragraphs = _get_sat_model(self.sat_model_id).split(
+                        self.raw_text,
+                        do_paragraph_segmentation=True,
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error splitting text into paragraphs using SaT model: {e}"
+                    )
+                    raise
+                paragraphs = ["".join(i) for i in paragraphs]
+            else:
+                raise ValueError(
+                    f"Invalid paragraph segmentation mode: {self.paragraph_segmentation_mode}"
+                )
+            if not paragraphs:
+                raise ValueError("No valid paragraphs in text")
+            # Assign paragraphs on the document
+            paragraphs = [_publicize(_Paragraph, raw_text=i) for i in paragraphs]
+            # Check that each paragraph is found in the document text
+            # For duplicate paragraphs, verify each occurrence is matched in the document.
+            # Paragraphs found in the text in their order are matched: the slower
+            # matching below is needed only for the others
+            if not _are_paragraphs_in_text_in_order(paragraphs, self.raw_text):
+                remaining_text = self.raw_text
+                for paragraph in paragraphs:
+                    if paragraph.raw_text not in remaining_text:
+                        raise ValueError(
+                            "Not all segmented paragraphs were matched in document text."
+                        )
+                    # Remove the first occurrence to handle duplicates correctly
+                    remaining_text = remaining_text.replace(paragraph.raw_text, "", 1)
+            self.paragraphs = paragraphs
+
+        # Only segment sentences during initialization if `pre_segment_sentences` is True
+        if self.pre_segment_sentences:
+            self._segment_sents()
+
+    def _segment_sents(self) -> None:
+        """
+        Segments sentences for paragraphs that don't have sentences already assigned.
+
+        :return: None
+        :raises RuntimeError: If no paragraphs exist or if segmented sentences cannot
+            be matched in the parent paragraph's text
+        :raises Exception: If the SaT model fails to process the paragraphs
+        """
+        if self._has_paragraphs_to_segment():
+            self._assign_segmented_sents(self._split_paragraphs_into_sents())
+
+    async def _segment_sents_async(self) -> None:
+        """
+        Segments sentences for paragraphs that don't have sentences already assigned,
+        as ``_segment_sents()`` does, with the SaT model run in a worker thread.
+
+        The event loop is thus not blocked while the model runs, which takes seconds
+        for a long document: the other tasks of the loop go on meanwhile, e.g.
+        the requests of other extractions, and documents segmented by other tasks
+        at the same time are segmented in threads of their own, with a shared model.
+
+        The sentences are assigned on the event loop, to the paragraphs that have
+        none by then. When two tasks segment the same document at the same time,
+        each paragraph keeps the sentences of the task that finishes first, so that
+        the references extracted by both are the same sentences.
+
+        :return: None
+        :raises RuntimeError: If no paragraphs exist or if segmented sentences cannot
+            be matched in the parent paragraph's text
+        :raises Exception: If the SaT model fails to process the paragraphs
+        """
+        if self._has_paragraphs_to_segment():
+            self._assign_segmented_sents(
+                await asyncio.to_thread(self._split_paragraphs_into_sents)
+            )
+
+    def _has_paragraphs_to_segment(self) -> bool:
+        """
+        Returns whether some paragraphs have no sentences, i.e. are to be segmented
+        into sentences.
+
+        :return: Whether some paragraphs have no sentences.
+        :rtype: bool
+        :raises RuntimeError: If no paragraphs exist
+        """
+        if not self.paragraphs:
+            raise RuntimeError("No paragraphs available for sentence segmentation")
+        return not all(i.sentences for i in self.paragraphs)
+
+    def _split_paragraphs_into_sents(self) -> list[list[str]]:
+        """
+        Splits the texts of the paragraphs that have no sentences into sentences
+        with the SaT model, without assigning them (see
+        ``_assign_segmented_sents()``). The paragraphs that have sentences, e.g.
+        the table rows of a document converted from Docling, are not split.
+
+        :return: The texts of the sentences of each paragraph, none for
+            a paragraph that has sentences.
+        :rtype: list[list[str]]
+        :raises Exception: If the SaT model fails to process the paragraphs
+        """
+        logger.info("Paragraphs are being split into sentences...")
+        if any(i.sentences for i in self.paragraphs):
+            logger.info(
+                "Some paragraphs already have sentences. These will be used `as is`."
+            )
+        positions = [
+            position
+            for position, paragraph in enumerate(self.paragraphs)
+            if not paragraph.sentences
+        ]
+        try:
+            split_sents = _split_into_sentences(
+                _get_sat_model(self.sat_model_id),
+                [self.paragraphs[position].raw_text for position in positions],
+            )
+        except Exception as e:
+            logger.error(
+                f"Error splitting paragraphs into sentences using SaT model: {e}"
+            )
+            raise
+        split_sents_for_paras: list[list[str]] = [[] for _ in self.paragraphs]
+        for position, sent_group in zip(positions, split_sents, strict=True):
+            split_sents_for_paras[position] = sent_group
+        return split_sents_for_paras
+
+    def _assign_segmented_sents(self, split_sents_for_paras: list[list[str]]) -> None:
+        """
+        Assigns the segmented sentences to the paragraphs that have no sentences.
+
+        :param split_sents_for_paras: The texts of the sentences of each paragraph,
+            as ``_split_paragraphs_into_sents()`` returns them.
+        :type split_sents_for_paras: list[list[str]]
+        :return: None
+        :raises ValueError: If segmented sentences cannot be matched in the parent
+            paragraph's text
+        """
+        for paragraph, sent_group in zip(
+            self.paragraphs, split_sents_for_paras, strict=True
+        ):
+            if not paragraph.sentences:
+                # Filter out empty sents, if any
+                sent_group = [i.strip() for i in sent_group]
+                sent_group = [i for i in sent_group if not _is_text_content_empty(i)]
+                unmatched_sentences = [
+                    i for i in sent_group if i not in paragraph.raw_text
+                ]
+                if unmatched_sentences:
+                    raise ValueError(
+                        f"Not all segmented sentences were matched in paragraph text.\n"
+                        f"Paragraph text: {paragraph.raw_text}\n"
+                        f"Unmatched sentences: {unmatched_sentences}"
+                    )
+                # Each sentence inherits the custom data, the additional context and
+                # the pages of its paragraph
+                paragraph.sentences = [paragraph._make_sentence(i) for i in sent_group]
+
+    def _relink_references(self) -> None:
+        """
+        Makes the references of the aspects and of the extracted items of
+        the document the paragraphs and sentences of the document itself.
+
+        A reference paragraph or a reference sentence is an object of the document
+        when it is extracted. It is replaced by an equal copy with the same unique
+        ID whenever the aspect or the concept that holds it is copied, as aspects
+        and concepts are when they are assigned (the sub-aspects extracted from
+        an aspect, the aspects and concepts that the calling code assigns to
+        a processed document or aspect, e.g. with ``add_aspects()``), and
+        whenever the document is restored from its serialized form, in which each
+        reference is stored on its own. Such copies take memory and go stale: what
+        changes in a paragraph of the document, e.g. the sentences segmented for it
+        later, does not reach them.
+
+        The method goes through the aspects of the document and their sub-aspects,
+        through their extracted items, and through the extracted items of
+        the concepts of the document and of the aspects. Each reference paragraph
+        and reference sentence that is not an object of the document is replaced by
+        the paragraph or the sentence of the document with the same unique ID.
+        A reference with no counterpart in the document is left as it is. The lists
+        of references are changed in place: their order and length stay the same.
+
+        Nothing is done for a throwaway document that the extraction engine builds
+        from the paragraphs of an aspect, to extract its sub-aspects or
+        the concepts of a sub-aspect. Such a document holds copies of the aspects
+        that are being processed, which are to stay equal to them, also in what
+        they reference. The document that they are extracted for is relinked
+        before the copies are made, and after what is extracted is written back.
+
+        :return: None
+        :rtype: None
+        """
+        if self._suppress_aspect_nesting_normalization or not self.paragraphs:
+            return
+
+        # Everything of the document that holds references: the aspects at all
+        # levels of nesting, and the extracted items of the aspects and of
+        # the concepts
+        pending_aspects = list(self.aspects)
+        concepts = list(self.concepts)
+        paragraph_lists: list[list[_Paragraph]] = []
+        sentence_lists: list[list[_Sentence]] = []
+        while pending_aspects:
+            aspect = pending_aspects.pop()
+            paragraph_lists.append(aspect.reference_paragraphs)
+            sentence_lists.append(aspect.reference_sentences)
+            for item in aspect.extracted_items:
+                paragraph_lists.append(item.reference_paragraphs)
+                sentence_lists.append(item.reference_sentences)
+            concepts.extend(aspect.concepts)
+            pending_aspects.extend(aspect.aspects)
+        for concept in concepts:
+            for item in concept.extracted_items:
+                paragraph_lists.append(item.reference_paragraphs)
+                sentence_lists.append(item.reference_sentences)
+
+        _replace_copies_with_originals(paragraph_lists, self.paragraphs)
+        # The sentences of the document are gathered only if any are referenced
+        sentence_lists = [sentences for sentences in sentence_lists if sentences]
+        if sentence_lists:
+            _replace_copies_with_originals(sentence_lists, self.sentences)
+
+    def _requires_sentence_segmentation(self) -> bool:
+        """
+        Check if any aspect, sub-aspect, or concept attached to the document requires
+        sentence-level segmentation, i.e. requires sentences while some paragraphs
+        have none. Some paragraphs can have sentences while others do not, e.g.
+        the table rows of a document converted from Docling, which are one sentence
+        each, or the paragraphs given with their sentences.
+
+        :return: True if any aspect, sub-aspect, or concept requires sentence-level segmentation,
+            False otherwise
+        :rtype: bool
+        """
+
+        # Each paragraph has its sentences, segmented or given
+        if self.paragraphs and all(i.sentences for i in self.paragraphs):
+            return False
+
+        def _check_aspect_requires_sentences(aspect: _Aspect) -> bool:
+            """
+            Helper function to recursively check if an aspect or its sub-aspects
+            require sentence segmentation.
+
+            :param aspect: The aspect to check for sentence segmentation requirements
+            :type aspect: _Aspect
+            :return: True if the aspect or any of its sub-aspects require
+                sentence segmentation
+            :rtype: bool
+            """
+            # Check if this aspect requires sentence-level segmentation
+            if aspect.reference_depth == "sentences":
+                return True
+
+            # Check if any sub-aspects require sentence-level segmentation
+            for sub_aspect in aspect.aspects:
+                if _check_aspect_requires_sentences(sub_aspect):
+                    return True
+
+            # Check if any concepts in this aspect require sentence-level segmentation
+            for concept in aspect.concepts:
+                if concept.add_references and concept.reference_depth == "sentences":
+                    return True
+
+            return False
+
+        # Check if any aspect or sub-aspect requires sentence-level segmentation
+        aspects_requiring_segmentation = [
+            aspect
+            for aspect in self.aspects
+            if _check_aspect_requires_sentences(aspect)
+        ]
+        # Check document concepts
+        concepts_requiring_segmentation = [
+            concept
+            for concept in self.concepts
+            if concept.add_references and concept.reference_depth == "sentences"
+        ]
+
+        if aspects_requiring_segmentation or concepts_requiring_segmentation:
+            if aspects_requiring_segmentation:
+                aspect_names = [
+                    aspect.name for aspect in aspects_requiring_segmentation
+                ]
+                logger.info(
+                    f"Sentence-level segmentation is requested for aspects "
+                    f"(including sub-aspects, if any): {aspect_names}."
+                )
+
+            if concepts_requiring_segmentation:
+                concept_names = [
+                    concept.name for concept in concepts_requiring_segmentation
+                ]
+                logger.info(
+                    f"Sentence-level segmentation is requested for concepts: {concept_names}."
+                )
+
+            logger.info(
+                "SaT model will be used for sentence segmentation of the document."
+            )
+            return True
+
+        return False
+
+    def _set_text_from_paras(self) -> None:
+        """
+        Sets the raw text attribute for the object by combining text from paragraphs.
+
+        If the `paragraphs` attribute exists and is not empty, while the `raw_text`
+        attribute is empty, it merges the text content of all paragraphs and assigns
+        it to the `raw_text` attribute.
+
+        :return: None
+        """
+
+        # Set raw text from paragraphs
+        if self.paragraphs and not self.raw_text:
+            logger.info("Raw text is being set from paragraphs...")
+            self.raw_text = "\n\n".join([i.raw_text for i in self.paragraphs])
+
+    @field_validator("images")
+    @classmethod
+    def _validate_images(cls, images: list[_Image]) -> list[_Image]:
+        """
+        Validates the uniqueness of document images provided in the document.
+
+        :param images: A list of `_Image` objects to validate.
+        :return: The original list of `_Image` objects if all images are unique.
+        :raises ValueError: If a duplicate image is found in the list, based on its
+            `base64_data` content.
+        """
+        seen = set()
+        for image in images:
+            if image.base64_data in seen:
+                raise ValueError(
+                    "Image already exists in the document. All images must be unique."
+                )
+            seen.add(image.base64_data)
+        return images
+
+    @field_validator("sat_model_id")
+    @classmethod
+    def _validate_sat_model_id(cls, sat_model_id: SaTModelId) -> str:
+        """
+        Validates and converts the sat_model_id to ensure it's a string.
+        If a Path object is provided, it's converted to a string representation.
+        This conversion ensures the document remains fully serializable.
+
+        :param sat_model_id: The SaT model ID or path to validate
+        :return: String representation of the model ID or path
+        """
+        if isinstance(sat_model_id, Path):
+            return str(sat_model_id)
+        return sat_model_id
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_document_pre(cls, data: Any) -> Any:
+        """
+        Validates the document's raw input data, which could be a dict with input values,
+            an instance of the model, or another type depending on what is passed to the model.
+
+        :raises ValueError:
+            - If none of `raw_text`, `paragraphs`, or `images` are provided.
+        :return:
+            The validated data.
+        """
+
+        if isinstance(data, dict) and (
+            not data.get("raw_text")
+            and not data.get("paragraphs")
+            and not data.get("images")
+        ):
+            raise ValueError(
+                "Either raw_text, paragraphs, or images must be provided for the document."
+            )
+        return data
+
+    @model_validator(mode="after")
+    def _validate_document_post(self) -> Self:
+        """
+        Validates the consistency between the document text and paragraphs.
+
+        Verifies that:
+        - Each paragraph's text exists in the document text
+        - Paragraphs are ordered according to their appearance in the document text
+
+        Does nothing if both `raw_text` and `paragraphs` are not provided.
+
+        :param self: The instance of the model being validated.
+
+        :return: The validated instance of the model.
+        :raises ValueError: If paragraphs are not matched or ordered correctly in
+            the document text.
+        """
+
+        # Aspects attached to a document are top-level: normalize their nesting
+        # levels (no-op when already correct, or when suppressed for the
+        # extraction engine's internal single-aspect documents).
+        self._normalize_top_level_aspect_nesting()
+
+        # The checks run on each assignment to the document, e.g. when aspects are
+        # added. Paragraphs found in the raw text in their order pass both checks
+        # below, which take longer on a long document (see
+        # `_are_paragraphs_in_text_in_order()`): they are needed only to report
+        # the paragraphs that are not found so.
+        if (
+            self.raw_text
+            and self.paragraphs
+            and not _are_paragraphs_in_text_in_order(self.paragraphs, self.raw_text)
+        ):
+            # Check that all paragraphs exist in the document raw text
+            unmatched_paragraphs = _check_paragraphs_match_in_text(
+                self.paragraphs, self.raw_text
+            )
+            if unmatched_paragraphs:
+                unmatched_texts = [p.raw_text for p in unmatched_paragraphs]
+                raise ValueError(
+                    f"Not all paragraphs were matched in document raw text. "
+                    f"Unmatched paragraphs: {unmatched_texts}"
+                )
+            # Check that paragraphs are ordered according to their appearance in the raw text
+            _check_paragraphs_ordering_in_text(self.paragraphs, self.raw_text)
+
+        return self

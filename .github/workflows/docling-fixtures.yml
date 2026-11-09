@@ -1,0 +1,128 @@
+name: Docling fixtures
+
+# Converts the fixtures of the tests of the docling extra with full Docling, on
+# the CPU-only PyTorch, and checks that ContextGem makes the same paragraphs from
+# them as from the committed Docling documents (dev/docling_fixtures.py). The
+# tests convert the fixtures in the formats that need no models themselves, with
+# the torch-free docling-slim of the dev group. A PDF file needs the models of
+# Docling, which only this workflow runs (and their OCR, for a scanned one), as
+# do an image file and a Google Books package; an audio or a video file the speech
+# recognition of Docling (Whisper) and ffmpeg; an email, OpenDocument file or XBRL
+# report packages that the dev group does not have; and a legacy Office (DOC, XLS,
+# PPT) or RTF file LibreOffice. This workflow installs LibreOffice and ffmpeg, and
+# the script the rest. It runs when the version of Docling can change (uv.lock) or
+# the converter does, and weekly with the latest Docling, to find its changes
+# before an upgrade.
+
+on:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - "uv.lock"
+      - "contextgem/internal/converters/**"
+      - "tests/other_files/docling/**"
+      - "dev/docling_fixtures.py"
+      - ".github/workflows/docling-fixtures.yml"
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - "uv.lock"
+      - "contextgem/internal/converters/**"
+      - "tests/other_files/docling/**"
+      - "dev/docling_fixtures.py"
+      - ".github/workflows/docling-fixtures.yml"
+  schedule:
+    # Mondays, with the latest Docling
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+  # Give HuggingFace Hub downloads more headroom before timing out, so a slow
+  # CDN response is retried rather than failing the cold-cache model fetch.
+  HF_HUB_DOWNLOAD_TIMEOUT: "30"
+  UV_VERSION: "0.13.6"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # Without the token in .git/config, where checkout leaves it for the later
+      # steps, which push nothing
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Set up Python from .python-version
+        run: uv python install
+
+      # Fabric, for the task. The script installs ContextGem with full Docling
+      # in a throwaway environment of its own.
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # LibreOffice, with which Docling converts the legacy Office and RTF files
+      # (DOC, XLS, PPT, RTF) into DOCX, XLSX and PPTX: Writer, Calc and Impress,
+      # without the packages that they only recommend; and ffmpeg, with which
+      # Whisper reads the audio and video files, and Docling the frames of a video.
+      # The download of a package from the mirror of the runner can stall, past
+      # the time limit of the job (twice in October 2026, with 49 of 151 packages
+      # downloaded): an attempt to download them that takes more than 3 minutes,
+      # where all of them take seconds, is stopped and made again, on new
+      # connections, and apt resumes the files that it has partly downloaded.
+      # The mirror can stall again on each new connection (three attempts in a
+      # row on 2026-10-26), so a stopped attempt takes it out of the runner's
+      # list of mirrors, which apt reads at each download: the next attempts
+      # download from the next mirror of the list, archive.ubuntu.com.
+      # The installation, from the downloaded files, is never stopped half-way
+      - name: Install LibreOffice and ffmpeg
+        timeout-minutes: 15
+        env:
+          PACKAGES: libreoffice-writer libreoffice-calc libreoffice-impress ffmpeg
+          MIRRORS: /etc/apt/apt-mirrors.txt
+        run: |
+          sudo apt-get update
+          for attempt in 1 2 3; do
+            if sudo timeout --kill-after=10 180 apt-get install --download-only \
+                -y --no-install-recommends $PACKAGES; then
+              break
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "::error::The packages were not downloaded in 3 attempts"
+              exit 1
+            fi
+            echo "::warning::Attempt $attempt to download the packages stopped"
+            if [ -f "$MIRRORS" ]; then
+              sudo sed -i '/azure\.archive\.ubuntu\.com/d' "$MIRRORS"
+            fi
+          done
+          sudo apt-get install -y --no-install-recommends $PACKAGES
+
+      # The layout, table and OCR models of Docling, about 0.5 GB, and the small
+      # model of Whisper, about 0.5 GB
+      - name: Cache the models of Docling
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cache/huggingface
+            ~/.cache/whisper
+          key: docling-models-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            docling-models-${{ runner.os }}-
+
+      - name: Check the Docling documents of the fixtures
+        run: >-
+          uv run fab docling-fixtures
+          --docling-version ${{ github.event_name == 'schedule' && 'latest' || 'locked' }}

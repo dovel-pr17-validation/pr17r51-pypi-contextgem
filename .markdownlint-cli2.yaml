@@ -1,0 +1,19 @@
+# Signed contributor agreements live verbatim — do not lint or auto-fix.
+# The Markdown files that the Docling converter is tested on are its inputs,
+# with unusual Markdown on purpose, which the tests convert as they are.
+ignores:
+  - ".github/contributors/**"
+  - "tests/other_files/docling/**"
+
+config:
+  no-duplicate-heading:
+    siblings_only: true
+  line-length: false
+  first-line-heading: false
+  table-column-style: false
+  # The README switches the rule off around its HTML blocks (the header, the
+  # figures, the tables): a line break in a cell of a Markdown table is the
+  # HTML allowed anywhere.
+  no-inline-html:
+    allowed_elements:
+      - br

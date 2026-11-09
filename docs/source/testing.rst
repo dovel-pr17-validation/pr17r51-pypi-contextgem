@@ -1,0 +1,118 @@
+.. meta::
+   :description: How to test code that uses ContextGem without sending requests to the models, by replacing the two litellm functions that send them, and when to use recorded responses instead.
+
+
+Testing Without API Calls
+==========================
+
+The code that you build on ContextGem can be tested without sending a request to a model: no API key, no cost, the same result in each run, e.g. in CI. ContextGem sends each request to a model through one of two functions of ``litellm``, which a test replaces with a stand-in that returns the response.
+
+
+🔌 Where to Patch
+-------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Function
+     - Sends
+   * - ``litellm.acompletion``
+     - Each request to an LLM (:class:`~contextgem.public.llms.DocumentLLM`): in the extraction methods and in a chat.
+   * - ``litellm.adecisions``
+     - Each request to a decision model (:class:`~contextgem.public.decision_models.DocumentDecisionModel`).
+
+ContextGem looks these functions up on the ``litellm`` module when it sends each request, so ``unittest.mock.patch.object(litellm, "acompletion", stand_in)``, or ``monkeypatch.setattr(litellm, "acompletion", stand_in)`` with pytest, applies to every model, also to one created before the patch, and to the sync and async methods alike. They are the supported points for replacing the requests in tests. The stand-in is an async function, called with keyword arguments.
+
+What ContextGem makes of the response of a stand-in is validated as a response of the model is: an answer that does not have the format that the prompt asks for is invalid data, which ContextGem asks for again up to ``max_retries_invalid_data`` times, and then raises :class:`~contextgem.public.exceptions.ModelExtractionError` (see :ref:`llm-retries-label`). A stand-in can also raise an error of ``litellm``, e.g. to test the handling of a failed request. An error without an HTTP status code, e.g. an exception of your own, or an error in the stand-in itself, is not retried, unless it is a ``TimeoutError`` or a ``ConnectionError`` of Python, e.g. to simulate a failure of the network: the next fallback model is tried, and the error is the ``original_error`` of :class:`~contextgem.public.exceptions.ModelAPIError` (see :ref:`llm-retries-label`).
+
+
+🤖 Stubbing an LLM
+--------------------
+
+.. literalinclude:: ../../dev/usage_examples/docs/testing/stub_llm_requests.py
+   :language: python
+   :caption: An extraction with a stand-in for the LLM
+
+The stand-in receives the keyword arguments of ``litellm.acompletion``, among them ``model`` and ``messages``, whose last message has the prompt, and returns a ``litellm.ModelResponse``. ContextGem reads from it:
+
+- the answer: the ``message.content`` of the last choice that has a text, or of the first choice;
+- in a chat, the tool calls of the choices (``message.tool_calls``);
+- the ``finish_reason`` of the choices;
+- the token counts of ``usage``: ``prompt_tokens``, ``completion_tokens`` and, where present, the cached tokens of ``prompt_tokens_details``, which the costs are calculated from.
+
+``litellm.mock_completion``, given the keyword arguments of the request and ``mock_response``, builds such a response, and sends no request whatever it is given: the answer as its text, ``finish_reason="stop"``, and a usage of 10 prompt tokens and 20 completion tokens whatever the request (``litellm`` 1.105.7). ``mock_response=""`` gives an empty answer. Do not call the real ``litellm.acompletion`` from a stand-in, also not with ``mock_response``: it takes ``mock_response=""`` as no mock, and sends the request.
+
+The answer of an extraction is the JSON that the prompt asks for in its answer format: an array with an entry for each concept, or aspect, of the request, by its ID in the prompt (``"C0"``, ``"C1"``, … for concepts, ``"A0"``, … for aspects), with its extracted items. The paragraphs and sentences have the IDs of the prompt too (``"P0"``, ``"P0-S0"``). The form of an item depends on what the concept or aspect asks for, and no other key is accepted:
+
+- **A concept without justifications and references**: the value alone, e.g. ``{"concept_id": "C0", "extracted_items": ["INV-001"]}``.
+- **A concept with justifications or references**: an object with the value (``"value"``), the justification if it is asked for (``"justification"``), and the references if they are asked for: ``"reference_paragraph_ids"`` with paragraph references, or ``"reference_paragraphs"`` with sentence references, each ``{"reference_paragraph_id": "P0", "reference_sentence_ids": ["P0-S0"]}``. E.g. ``{"value": "INV-001", "justification": "The heading names it.", "reference_paragraph_ids": ["P0"]}``.
+- **The value**: for a label concept, ``{"labels": ["Contract"]}``; for a JSON object concept, the object; for the other concepts, the value as the prompt asks for it, e.g. a date as ``"30-11-2026"`` (DD-MM-YYYY).
+- **An aspect**: ``{"aspect_id": "A0", "paragraph_ids": ["P0", "P2"]}``; with justifications, ``"paragraphs"`` instead, each ``{"paragraph_id": "P0", "justification": "..."}``; with sentence references, each paragraph of ``"paragraphs"`` has ``"sentences"``, each ``{"sentence_id": "P0-S1"}``, with its ``"justification"`` if justifications are asked for.
+
+The answer of a chat is its text.
+
+To test a refusal, set ``finish_reason`` to ``"content_filter"`` on the choice of the response, e.g. of the one that ``litellm.mock_completion`` builds: ``litellm`` gives this finish reason for the refusal of a Claude model and for the content filters of the providers (see :ref:`llm-refusals-label`). For the refusal of a model of OpenAI, set ``provider_specific_fields={"refusal": "..."}`` on the message, with no ``content``: ``litellm`` keeps the ``refusal`` field of the answer of OpenAI there, where ContextGem reads it, and setting ``refusal`` on the message has no effect. For a request or an answer that the provider blocks, raise ``litellm.ContentPolicyViolationError``.
+
+To test a chat with tools, return the tool calls of the model with ``mock_tool_calls``, a list of tool calls as the OpenAI API gives them, and ``mock_response=""``. ContextGem then calls the tools, and sends the next request of the turn with their results, as messages with the ``"tool"`` role, to which the stand-in answers with the text:
+
+.. code-block:: python
+
+   import json
+
+   import litellm
+
+
+   async def acompletion_stand_in(**kwargs):
+       # The first request of the turn: the model calls a tool
+       if not any(message.get("role") == "tool" for message in kwargs["messages"]):
+           return litellm.mock_completion(
+               **kwargs,
+               mock_response="",
+               mock_tool_calls=[
+                   {
+                       "id": "call_1",
+                       "type": "function",
+                       "function": {
+                           "name": "get_order_status",
+                           "arguments": json.dumps({"order_id": "ORD-1"}),
+                       },
+                   }
+               ],
+           )
+       # The next request, with the result of the tool: the answer
+       return litellm.mock_completion(**kwargs, mock_response="The order is shipped.")
+
+
+🎯 Stubbing a Decision Model
+------------------------------
+
+.. literalinclude:: ../../dev/usage_examples/docs/testing/stub_decision_model_requests.py
+   :language: python
+   :caption: An extraction with a stand-in for the decision model
+
+The stand-in receives the keyword arguments of ``litellm.adecisions``: ``model``, ``input``, the text, and ``questions``, each a dict with its ``name`` and ``type``: ``"predicate"`` for a yes/no question, ``"choice"`` with the options in ``"choices"``, each a dict with its ``"value"``, or ``"score"`` with the levels in ``"levels"``, each a dict with its ``"label"``. It returns a ``litellm.types.decisions.OpenAIDecisionResponse`` with one answer for each question, in the order of the questions, and its ``usage``. An answer is an ``OpenAIPredicateAnswer``, ``OpenAIChoiceAnswer`` or ``OpenAIScoreAnswer`` of the same module, with the probabilities of the options, or an ``OpenAIRefusalAnswer``.
+
+
+🔑 No API Keys in Tests
+-------------------------
+
+Run the tests with no API key, neither passed to the models nor in their environment (e.g. ``OPENAI_API_KEY``). A request that a test does not replace then fails for the missing key, with :class:`~contextgem.public.exceptions.ModelAPIError`, instead of being sent and billed.
+
+Replacing the two functions stops the requests to the models only. Other downloads are not affected: a SaT model, which segments the text into sentences when sentences are needed, is downloaded when it is first used (see :ref:`sat-models-offline`), and ``litellm`` fetches its model data from GitHub when it is imported, unless ``LITELLM_LOCAL_MODEL_COST_MAP=True`` is set, with which it uses the copy that it is installed with. Set the variable before ContextGem is imported, e.g. in the environment of the test run: a warning filter in the configuration of pytest that names a category of ContextGem, e.g. ``filterwarnings = error::contextgem.ContextGemWarning``, imports ContextGem, and ``litellm`` with it, before ``conftest.py`` runs. ContextGem also counts the input tokens of each request to an LLM with ``litellm``, to check them against the context window of the model, and ``tiktoken``, which counts them, downloads its encodings from ``openaipublic.blob.core.windows.net`` where the copies that ``litellm`` is installed with are rejected, as on Windows with ``litellm`` 1.105.7, whose copies have Windows line endings. Without the download, the check is skipped, with a message in the log, for the requests of that model until the process is restarted: each count would try the download again, which can take several seconds where the network blocks it, e.g. behind a proxy that refuses it. To count the tokens without the download, prepare the encodings in a folder of your own where the network can be reached, and keep the folder with your tests: ``litellm`` uses the folder that ``CUSTOM_TIKTOKEN_CACHE_DIR`` names, when it is set before ``litellm`` is imported.
+
+.. code-block:: bash
+
+   # Download the encodings into the folder once, e.g. when the CI image is built
+   export CUSTOM_TIKTOKEN_CACHE_DIR=/opt/tiktoken
+   uv run python -c "import litellm; litellm.token_counter(model='openai/gpt-6-luna', text='Text.')"
+
+Run the tests with the same ``CUSTOM_TIKTOKEN_CACHE_DIR``. Count with a model of your tests in the command: a model may use another encoding.
+
+
+📼 Stand-ins and Recorded Responses
+--------------------------------------
+
+A stand-in tests your code around ContextGem: what it does with the extracted items, errors and costs. It does not depend on the text of the prompts, so an upgrade of ContextGem that changes a prompt leaves such a test working. To check what your code asks for, e.g. the output language of an LLM, check the setting (``llm.output_language``), which ContextGem turns into the words of the prompt, rather than those words.
+
+To check how a model answers your documents and descriptions, record its real responses once and replay them, e.g. with `pytest-recording <https://github.com/kiwicom/pytest-recording>`_ or `VCR.py <https://github.com/kevin1024/vcrpy>`_. A recording matches the requests, prompts included: an upgrade of ContextGem that changes a prompt makes the recordings of that prompt stale, and they are recorded again.

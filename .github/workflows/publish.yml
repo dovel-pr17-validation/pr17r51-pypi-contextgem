@@ -1,0 +1,200 @@
+name: Publish
+
+# Runs after each run of the tests, a pull request's from a fork too, with the
+# workflow and the context of the default branch (main). Nothing is checked out
+# from the run or published unless the run was a push, the gate finds a v* tag
+# of this repository on its commit and that commit on main, and the pypi
+# environment accepts deployments from main only: that is why zizmor's
+# dangerous-triggers finding is ignored on the trigger
+on:
+  workflow_run:  # zizmor: ignore[dangerous-triggers]
+    workflows: [tests]
+    types: [completed]
+
+concurrency:
+  group: publish-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# The SHA-256 of the Linux archive of that uv
+# (uv-x86_64-unknown-linux-gnu.tar.gz.sha256 on its release page) changes with
+# it: setup-uv 10.3.0 holds the checksums of uv up to 0.13.0 only, and checks a
+# newer one against a list it downloads at run time, which is not enough for
+# the job that builds the release
+env:
+  UV_VERSION: "0.13.6"
+  UV_SHA256: "f29c3e94ffabd7e6f3ba521dba169a9b7ec12100bf3257087f0f24f6123f3645"
+
+jobs:
+  publish-gate:
+    # A release is the push of a commit of main with its tag: the runs of the
+    # tests on a pull request stop here
+    if: >-
+      github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      should_publish: ${{ steps.check.outputs.should_publish }}
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      # Without the token in .git/config, where checkout leaves it for the later
+      # steps, which push nothing
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify v* tag on main
+        id: check
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          # Check for an actual v* tag pointing at this commit
+          TAG=$(git tag --points-at "$SHA" | grep '^v' | head -n1)
+          if [ -z "$TAG" ]; then
+            echo "::notice::No v* tag at $SHA — skipping."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Verify the tagged commit is on main
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "::notice::Tag $TAG is not on main — skipping."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Publishing $TAG ($SHA)"
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [publish-gate]
+    if: needs.publish-gate.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      # Without the cache of uv, which the jobs of other workflows can write: a
+      # job that ran a compromised package could leave one for the build (as
+      # setup-uv's default does on workflow_run)
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          checksum: ${{ env.UV_SHA256 }}
+          enable-cache: false
+
+      - name: Set up Python from .python-version
+        run: uv python install
+
+      # The notes of the GitHub release: the section of the version in
+      # the changelog. Taken here, before anything is published, so that
+      # a version without one stops the release before it reaches PyPI; and
+      # written outside the checkout, so that the build sees the tagged commit
+      # only. The script uses the standard library only (--no-project).
+      - name: Write the release notes
+        env:
+          TAG: ${{ needs.publish-gate.outputs.tag }}
+        run: uv run --no-project python dev/release_notes.py "${TAG#v}" > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      # Uploaded before the check below installs anything, so that nothing that
+      # it runs can change the files that are published
+      - name: Upload artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: dist
+          path: dist/*
+
+      - name: Upload the release notes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/release-notes.md
+
+      # Install the built wheel into a fresh environment and use it there:
+      # catches what the source tree hides, e.g. a prompt template missing
+      # from the wheel. Its dependencies are the versions of uv.lock, which the
+      # tests ran on, checked by their hashes: none is resolved afresh.
+      - name: Verify wheel install
+        run: |
+          uv export --locked --no-default-groups --no-emit-project --output-file /tmp/requirements.txt
+          uv venv /tmp/wheel-verify
+          uv pip install --python /tmp/wheel-verify/bin/python --require-hashes -r /tmp/requirements.txt
+          uv pip install --python /tmp/wheel-verify/bin/python --no-deps dist/contextgem-*.whl
+          uv pip check --python /tmp/wheel-verify/bin/python
+          cd /tmp
+          /tmp/wheel-verify/bin/python -c "
+          import contextgem
+          from contextgem.internal.utils import _get_template
+          _get_template('extract_concept_items')
+          _get_template('default_system_message', template_type='system')
+          print('contextgem', contextgem.__version__)
+          "
+
+  publish:
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      # The built files only: the release notes are not for PyPI
+      - name: Download the built files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3
+        with:
+          # Two runs of the tests at one commit (e.g. a re-run) lead to two
+          # publish runs: the second upload of the same version is then a
+          # no-op instead of a failure.
+          skip-existing: true
+
+  # The GitHub release of the tag, named after it, with the notes that the
+  # build job wrote. This job holds the only token of the workflow that can
+  # write the repository, so it runs no code of the project or of its
+  # dependencies, and checks nothing out: gh is the runner's own, and
+  # --verify-tag keeps it from creating a tag. A release that exists, e.g. from
+  # a re-run, is left as it is.
+  release:
+    needs: [publish-gate, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # to create the GitHub release
+
+    steps:
+      - name: Download the release notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: release-notes
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.publish-gate.outputs.tag }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::notice::The release $TAG exists — skipping."
+            exit 0
+          fi
+          gh release create "$TAG" --title "$TAG" --notes-file release-notes.md --verify-tag

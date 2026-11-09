@@ -1,0 +1,177 @@
+.. meta::
+   :description: How ContextGem works: documents, aspects and concepts, how LLMs, decision models and model groups extract them, and what ContextGem is not (a RAG or an agent framework).
+
+How it works
+=============
+
+
+📏 Every Paragraph Is Read
+---------------------------
+
+ContextGem is built for in-depth analysis of individual documents. There is no search step that picks the chunks that look relevant, as in RAG: the model reads every paragraph of the text it extracts from, all at once or in batches of paragraphs of a size you set (see :doc:`optimizations/optimization_long_docs`), so no fact is missed because a search ranked its passage low. This avoids the retrieval inconsistencies that make RAG approaches `struggle with complex concepts and nuanced insights <https://www.linkedin.com/pulse/raging-contracts-pitfalls-rag-contract-review-shcherbak-ai-ptg3f/>`_.
+
+
+🧩 Core Components
+-------------------
+
+ContextGem's main elements are documents, aspects, and concepts:
+
+
+📄 **Document**
+~~~~~~~~~~~~~~~~
+
+:class:`~contextgem.public.documents.Document` contains text and/or visual content representing a specific document. Documents can vary in type and purpose, including but not limited to:
+    - *Contracts*: legal agreements defining terms and obligations.
+    - *Invoices*: financial documents detailing transactions and payments.
+    - *Curricula Vitae (CVs)*: resumes outlining an individual's professional experience and qualifications.
+    - *General documents*: any other types of documents that may contain text or images.
+
+
+🔍 **Aspect**
+~~~~~~~~~~~~~~~
+
+:class:`~contextgem.public.aspects.Aspect` contains text representing a defined area or topic within a document (or another aspect) that requires focused attention. Each aspect reflects a specific subject or theme. For example:
+    - *Contract aspects*: payment terms, parties involved, or termination clauses.
+    - *Invoice aspects*: due dates, line-item breakdowns, or tax details.
+    - *CV aspects*: work experience, education, or skills.
+
+Aspects may have sub-aspects, for more granular extraction with nested context. This hierarchical structure allows for progressive refinement of focus areas, enabling precise extraction of information from complex documents while maintaining the contextual relationships between different levels of content.
+
+
+💡 **Concept**
+~~~~~~~~~~~~~~~
+
+A concept contains a unit of information or an entity, derived from an aspect or the broader document context. Concepts represent a wide range of data points and insights, from simple entities (names, dates, monetary values) to complex evaluations, conclusions, and answers to specific questions. Concepts can be:
+    - *Factual extractions*: such as a penalty clause in a contract, a total amount due in an invoice, or a certification in a CV.
+    - *Analytical insights*: such as risk assessments, compliance evaluations, or pattern identifications.
+    - *Reasoned conclusions*: such as determining whether a document meets specific criteria or answers particular questions.
+    - *Interpretative judgments*: such as ratings, classifications, or qualitative assessments based on document content.
+
+Concepts may be attached to an aspect or a document. The context for the concept extraction will be the aspect or document, respectively. This flexible attachment allows for both targeted extraction from specific document sections and broader analysis across the entire document content. When attached to aspects, concepts benefit from the focused context, enabling more precise extraction of domain-specific information. When attached to documents, concepts can leverage the complete context to identify patterns, anomalies, or insights that span multiple sections.
+
+Multiple concept types are supported: :class:`~contextgem.public.concepts.StringConcept`, :class:`~contextgem.public.concepts.BooleanConcept`, :class:`~contextgem.public.concepts.NumericalConcept`, :class:`~contextgem.public.concepts.DateConcept`, :class:`~contextgem.public.concepts.JsonObjectConcept`, :class:`~contextgem.public.concepts.RatingConcept`, :class:`~contextgem.public.concepts.LabelConcept`.
+
+.. list-table:: Component Examples
+   :header-rows: 1
+   :widths: 15 20 20 20 20
+
+   * -
+     - Document
+     - Aspect
+     - Sub-aspect
+     - Concept
+   * - **Legal**
+     - *Software License Agreement*
+     - Intellectual Property Rights
+     - Patent Indemnification
+     - Indemnification Coverage Scope (``JsonObjectConcept``)
+   * - **Financial**
+     - *Quarterly Earnings Report*
+     - Revenue Analysis
+     - Regional Performance
+     - Year-over-Year Growth Rate (``NumericalConcept``)
+   * - **Healthcare**
+     - *Medical Research Paper*
+     - Methodology
+     - Patient Selection Criteria
+     - Inclusion/Exclusion Validity (``BooleanConcept``)
+   * - **Technical**
+     - *System Architecture Document*
+     - Security Framework
+     - Authentication Protocols
+     - Implementation Risk Rating (``RatingConcept``)
+   * - **HR**
+     - *Employee Handbook*
+     - Leave Policy
+     - Parental Leave Benefits
+     - Eligibility Start Date (``DateConcept``)
+
+
+🔄 Extraction Workflow
+-----------------------
+
+ContextGem uses the following models to extract information from documents:
+
+
+🤖 **DocumentLLM**
+~~~~~~~~~~~~~~~~~~~
+
+**A single configurable LLM to extract information from the document.**
+
+A single LLM extracts all the aspects and concepts it is given: from the document text and, for the concepts with the ``"image"`` or ``"multimodal"`` modality, from the document images (provided that the model supports vision). No role assignment is needed.
+
+An LLM can have one or more configurable fallback models, which are tried in the given order.
+
+See :class:`~contextgem.public.llms.DocumentLLM` and :ref:`concept-modality-label` for more details.
+
+
+⚖️ **DocumentDecisionModel**
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**A single configurable decision model to extract the information that can be expressed as a closed question.**
+
+A decision model generates no text: it answers typed questions about a text (yes/no, pick one option, rate on a scale) with probabilities. It extracts Boolean, label and rating concepts, as well as aspects, and each item it extracts has the probabilities of all the possible answers. It cannot extract the concepts with open values (e.g. strings, numbers, dates), does not extract from images, and provides no justifications, and no references for concepts.
+
+A decision model can be used on its own, in a model group together with LLMs, and in a fallback chain with LLMs.
+
+See :class:`~contextgem.public.decision_models.DocumentDecisionModel` and :doc:`decision_models/decision_models` for more details.
+
+
+🤖🤖 **DocumentModelGroup**
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**A group of models with different unique roles to extract different information from the document.**
+
+For more complex and granular extraction workflows, a model group can be used to extract different information from the same document using different models with different roles. For example, a simpler LLM e.g. gpt-6-luna can be used to extract specific aspects of the document, and a more powerful LLM e.g. gpt-6.1-sol will handle the extraction of complex concepts that require reasoning over the aspects' context.
+
+The ``role`` of a model is a free-form label used to route aspects/concepts to the models in the group. For example, if an aspect/concept is assigned ``model_role="reasoner"``, this aspect/concept is extracted from the document using the model with ``role="reasoner"``, while the aspects/concepts without ``model_role`` are extracted using the model without ``role``. This helps to channel different tasks to different models, ensuring that the task is handled by the most appropriate model. Usually, domain expertise is required to determine the most appropriate model for a specific aspect/concept.
+
+Each model can have its own backend and configuration, and one or more fallback models with the same role.
+
+A group can also include decision models, to which aspects/concepts are routed by their roles in the same way.
+
+See :class:`~contextgem.public.models.DocumentModelGroup` and :ref:`model-roles-label` for more details.
+
+.. list-table:: Model Group Workflow Example
+   :header-rows: 1
+   :widths: 15 20 20 20
+
+   * -
+     - LLM 1 (no role)
+     - LLM 2 (``role="reasoner"``)
+     - Decision model (``role="decide"``)
+   * - *Model*
+     - gpt-6-luna
+     - gpt-6.1-sol
+     - jev-latest
+   * - *Task*
+     - Extract payment terms from a contract
+     - Detect anomalies in the payment terms
+     - Check whether the contract can be terminated for convenience
+   * - *Fallback model(s)* (optional)
+     - gpt-5.6-luna
+     - gpt-5.6-sol
+     - gpt-6-luna
+
+.. figure:: _static/contextgem_how_it_works_infographics.svg
+   :width: 100%
+   :alt: ContextGem - How it works: a model group with two LLMs and a decision model
+   :align: center
+
+   The models of the example above at work. The two LLMs extract an aspect and a concept of that aspect. The decision model takes a closed question about the document, which it answers with probabilities.
+
+
+ℹ️ What ContextGem Doesn't Offer
+---------------------------------
+
+ContextGem is built for structured data extraction from individual documents, and has intentional design boundaries:
+
+**Not a RAG framework**
+~~~~~~~~~~~~~~~~~~~~~~~
+
+ContextGem focuses on in-depth single-document analysis, in which the model reads every paragraph of the text instead of the chunks that a search picks. It does not offer RAG capabilities for cross-document querying or corpus-wide information retrieval. For these use cases, RAG frameworks such as LlamaIndex and Haystack remain more appropriate.
+
+**Not an agent framework**
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ContextGem is not designed as an agent framework. It supports tool calling in chat (function calling) with optional parallel tool calls and JSON schema validation of tool arguments, which enables building lightweight, task-oriented agents using your own control loop together with :class:`~contextgem.public.llms.ChatSession`. For full agent orchestration (planning/critique, goal decomposition, long-term memory, schedulers, multi-agent coordination), we recommend frameworks specifically designed for this purpose. In such systems, ContextGem runs at three points: at the ingestion of documents, in a tool that an agent calls, and at the decision points of a workflow (see :doc:`agentic_workflows`).

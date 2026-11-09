@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: Shcherbak AI AS
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+This script populates the README.md file with code examples from the usage_examples/ directory.
+
+To use it, run:
+
+```bash
+python dev/populate_project_readme.py
+```
+"""
+
+from __future__ import annotations
+
+
+README_TEMPLATE_PATH = "dev/readme.template.md"
+README_OUTPUT_PATH = "README.md"
+README_FOOTER = ""
+
+# Map example files to markers in the template
+USAGE_EXAMPLES_MAPPING = {
+    "dev/usage_examples/readme/quickstart_llm.py": "{{QUICKSTART_LLM}}",
+    "dev/usage_examples/readme/quickstart_decision_model.py": "{{QUICKSTART_DECISION_MODEL}}",
+    "dev/usage_examples/readme/quickstart_docling.py": "{{QUICKSTART_DOCLING}}",
+}
+
+
+def generate_readme() -> None:
+    """
+    Generate the project README.md file by populating template with code examples.
+
+    Reads the README template file, replaces placeholder markers with actual code
+    snippets from usage examples, and writes the populated content to README.md.
+
+    :return: None
+    :rtype: None
+    """
+    with open(README_TEMPLATE_PATH, encoding="utf-8") as template_file:
+        template = template_file.read()
+
+    # Replace markers with actual code examples
+    for example_file, marker in USAGE_EXAMPLES_MAPPING.items():
+        code_snippet = extract_code_from_file(example_file)
+        template = template.replace(marker, code_snippet)
+
+    # LF on every platform, as the repository has it: on Windows, text mode
+    # would write CRLF
+    with open(README_OUTPUT_PATH, "w", encoding="utf-8", newline="\n") as readme_file:
+        readme_file.write(template)
+        readme_file.write(README_FOOTER)
+    print("Project README.md file populated successfully.")
+
+
+def extract_code_from_file(file_path: str) -> str:
+    """
+    Extract the complete content from a file.
+
+    Reads and returns the entire content of the specified file as a string.
+    Used to extract code snippets and examples for README template population.
+
+    :param file_path: Path to the file to read content from
+    :type file_path: str
+    :return: Complete file content as a string
+    :rtype: str
+    """
+    with open(file_path, encoding="utf-8") as f:
+        content = f.read()
+    return content
+
+
+if __name__ == "__main__":
+    generate_readme()

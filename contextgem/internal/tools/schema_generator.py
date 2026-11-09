@@ -1,0 +1,705 @@
+# SPDX-FileCopyrightText: Shcherbak AI AS
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Module for generating OpenAI-compatible tool schemas from Python function signatures.
+
+Converts Python type hints to JSON Schema and generates complete tool definitions
+for use with LLM tool calling.
+"""
+
+from __future__ import annotations
+
+import inspect
+import re
+import types
+import warnings
+from collections.abc import Callable, Sequence
+from typing import (
+    Annotated,
+    Any,
+    Literal,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+    is_typeddict,
+)
+
+from pydantic.fields import FieldInfo
+
+from contextgem.internal.exceptions import ContextGemWarning
+from contextgem.internal.tools.docstring_parser import _ParsedDocstring
+
+
+# Constraints that can be given in the metadata of ``Annotated``, e.g. with pydantic's
+# ``Field(ge=1)``, mapped to the JSON Schema keywords for the type they apply to.
+# The constraints are read by attribute name, which covers the constraint objects
+# stored by ``Field`` as well as the grouped ones (e.g. ``StringConstraints``).
+_NUMERIC_CONSTRAINT_KEYWORDS: dict[str, str] = {
+    "gt": "exclusiveMinimum",
+    "ge": "minimum",
+    "lt": "exclusiveMaximum",
+    "le": "maximum",
+    "multiple_of": "multipleOf",
+}
+_LENGTH_CONSTRAINT_KEYWORDS: dict[str, dict[str, str]] = {
+    "string": {"min_length": "minLength", "max_length": "maxLength"},
+    "array": {"min_length": "minItems", "max_length": "maxItems"},
+    "object": {"min_length": "minProperties", "max_length": "maxProperties"},
+}
+_CONSTRAINT_NAMES: tuple[str, ...] = (
+    *_NUMERIC_CONSTRAINT_KEYWORDS,
+    "min_length",
+    "max_length",
+    "pattern",
+)
+
+# Qualifiers of TypedDict fields, which wrap the type of a field
+_TYPEDDICT_QUALIFIER_NAMES: frozenset[str] = frozenset(
+    {"Required", "NotRequired", "ReadOnly"}
+)
+
+
+def _resolve_type_hints(
+    obj: Any, raw_annotations: dict[str, Any], obj_description: str
+) -> dict[str, Any]:
+    """
+    Returns the type hints of a function or a class, with the references
+    to the types resolved and the metadata of ``Annotated`` kept.
+
+    :param obj: The function or the class.
+    :type obj: Any
+    :param raw_annotations: The annotations as they are defined, used if the type
+        hints cannot be evaluated for a reason other than a type that is not found.
+    :type raw_annotations: dict[str, Any]
+    :param obj_description: What the type hints belong to, for the error message,
+        e.g. "the tool `search`".
+    :type obj_description: str
+    :returns: The type hints by name.
+    :rtype: dict[str, Any]
+    :raises TypeError: If a type that the type hints refer to by name is not found.
+    """
+    try:
+        return get_type_hints(obj, include_extras=True)
+    except NameError as e:
+        raise TypeError(
+            f"Cannot resolve the type hints of {obj_description}: {e}. "
+            "A type that is referred to by its name has to be defined at module level, "
+            "not inside a function. This applies to all type hints in a module with "
+            "`from __future__ import annotations`."
+        ) from e
+    except Exception:  # noqa: BLE001 - falls back to the raw annotations
+        return raw_annotations
+
+
+def _strip_annotated(type_hint: Any) -> Any:
+    """
+    Returns the type hint without the ``Annotated`` wrappers around it.
+
+    :param type_hint: The type hint to unwrap.
+    :type type_hint: Any
+    :returns: The underlying type hint.
+    :rtype: Any
+    """
+    while get_origin(type_hint) is Annotated:
+        type_hint = get_args(type_hint)[0]
+    return type_hint
+
+
+def _read_annotated_metadata(
+    metadata: Sequence[Any],
+) -> tuple[str | None, dict[str, Any]]:
+    """
+    Reads the description and the constraints from the metadata of ``Annotated``.
+
+    Supported metadata:
+    - a string: the description
+    - pydantic's ``Field(...)``: the description and the constraints
+    - constraint objects, e.g. ``annotated_types.Ge(1)`` or pydantic's
+      ``StringConstraints(...)``
+
+    Any other metadata is ignored, as ``Annotated`` may carry metadata intended
+    for other tools.
+
+    :param metadata: The metadata items of ``Annotated``.
+    :type metadata: Sequence[Any]
+    :returns: The description (None if not given) and the constraints by name.
+    :rtype: tuple[str | None, dict[str, Any]]
+    """
+    description: str | None = None
+    constraints: dict[str, Any] = {}
+    for item in metadata:
+        if isinstance(item, str):
+            if item.strip():
+                description = item.strip()
+        elif isinstance(item, FieldInfo):
+            if item.description and item.description.strip():
+                description = item.description.strip()
+            constraints.update(_read_annotated_metadata(item.metadata)[1])
+        else:
+            for name in _CONSTRAINT_NAMES:
+                value = getattr(item, name, None)
+                if value is not None:
+                    constraints[name] = value
+    return description, constraints
+
+
+def _apply_constraints(
+    schema: dict[str, Any], constraints: dict[str, Any], type_hint: Any
+) -> None:
+    """
+    Adds the constraints to the JSON Schema of the type they are given for.
+
+    :param schema: The JSON Schema of the annotated type. Modified in place.
+    :type schema: dict[str, Any]
+    :param constraints: The constraints by name, as read from the metadata.
+    :type constraints: dict[str, Any]
+    :param type_hint: The annotated type hint, for the error message.
+    :type type_hint: Any
+    :raises TypeError: If a constraint cannot be applied to the type, or if
+        a pattern is not a valid regular expression.
+    """
+    schema_type = schema.get("type")
+    for name, value in constraints.items():
+        if name in _NUMERIC_CONSTRAINT_KEYWORDS:
+            keyword = (
+                _NUMERIC_CONSTRAINT_KEYWORDS[name]
+                if schema_type in ("integer", "number")
+                else None
+            )
+        elif name == "pattern":
+            keyword = "pattern" if schema_type == "string" else None
+            value = value.pattern if isinstance(value, re.Pattern) else value
+            try:
+                re.compile(value)
+            except (re.error, TypeError) as e:
+                raise TypeError(
+                    f"Invalid `pattern` constraint in the type hint {type_hint}: {e}"
+                ) from e
+        else:
+            keyword = _LENGTH_CONSTRAINT_KEYWORDS.get(str(schema_type), {}).get(name)
+        if keyword is None:
+            raise TypeError(
+                f"Constraint `{name}` cannot be applied to the type hint {type_hint}. "
+                "Numeric constraints (gt, ge, lt, le, multiple_of) apply to int and "
+                "float, length constraints (min_length, max_length) to str, list, "
+                "tuple, set and dict, and pattern to str."
+            )
+        schema[keyword] = value
+
+
+def _contains_collection_type(
+    type_hint: Any,
+    target_types: tuple[type, ...],
+) -> bool:
+    """
+    Recursively check if a type hint contains any of the target collection types.
+
+    :param type_hint: The type hint to check.
+    :type type_hint: Any
+    :param target_types: Tuple of types to look for (e.g., (set, frozenset, tuple)).
+    :type target_types: tuple[type, ...]
+    :returns: True if any target type is found in the type hint.
+    :rtype: bool
+    """
+    origin = get_origin(type_hint)
+
+    # Check if the origin is one of the target types
+    if origin in target_types:
+        return True
+
+    # Recursively check type arguments
+    args = get_args(type_hint)
+    return any(_contains_collection_type(arg, target_types) for arg in args)
+
+
+# Type mapping from Python types to JSON Schema types
+_JSON_SCHEMA_TYPE_MAP: dict[type, dict[str, Any]] = {
+    str: {"type": "string"},
+    int: {"type": "integer"},
+    float: {"type": "number"},
+    bool: {"type": "boolean"},
+    type(None): {"type": "null"},
+}
+
+
+def _json_schema_type_of_value(value: Any) -> str | None:
+    """
+    Returns the JSON Schema ``type`` name for a concrete ``Literal`` value, or
+    ``None`` if the value has no single corresponding JSON Schema scalar type.
+
+    Booleans are checked before integers because ``bool`` is a subclass of
+    ``int``.
+
+    :param value: The literal value to classify.
+    :type value: Any
+    :returns: The JSON Schema type name (e.g. ``"integer"``), or ``None``.
+    :rtype: str | None
+    """
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if value is None:
+        return "null"
+    return None
+
+
+def _python_type_to_json_schema(
+    type_hint: Any,
+    description: str | None = None,
+    *,
+    _seen: frozenset[int] = frozenset(),
+) -> dict[str, Any]:
+    """
+    Convert a Python type hint to a JSON Schema object.
+
+    Supports:
+    - Primitive types (str, int, float, bool, None)
+    - list[X] -> array with items
+    - dict[str, X] -> object with additionalProperties
+    - dict -> object
+    - Optional[X] -> schema for X (optional handling at parameter level)
+    - Union[X, Y] -> anyOf
+    - Literal["a", "b"] -> enum
+    - TypedDict -> nested object with properties
+    - Annotated[X, ...] -> schema for X with the description and the constraints
+      given in the metadata, e.g. Annotated[int, Field(description="...", ge=1)]
+
+    :param type_hint: The Python type hint to convert.
+    :type type_hint: Any
+    :param description: Optional description to include in the schema. A description
+        given in the metadata of ``Annotated`` takes precedence over it.
+    :type description: str | None
+    :param _seen: Identities (``id()``) of class/TypedDict types currently being
+        expanded on the recursion stack. Used to break cycles in self- or
+        mutually-referential types; on revisit a generic ``{"type": "object"}``
+        is emitted instead of recursing without bound. Internal use only.
+    :type _seen: frozenset[int]
+    :returns: JSON Schema object.
+    :rtype: dict[str, Any]
+    :raises TypeError: If the type hint is not supported, or if a constraint given
+        in the metadata of ``Annotated`` cannot be applied to the annotated type.
+    """
+    schema: dict[str, Any] = {}
+
+    # Handle Annotated[X, ...]: the schema for X with the description and
+    # the constraints given in the metadata
+    if get_origin(type_hint) is Annotated:
+        annotated_type, *metadata = get_args(type_hint)
+        annotated_description, constraints = _read_annotated_metadata(metadata)
+        schema = _python_type_to_json_schema(
+            annotated_type, annotated_description or description, _seen=_seen
+        )
+        _apply_constraints(schema, constraints, type_hint)
+        return schema
+
+    # Handle the qualifiers of TypedDict fields, e.g. NotRequired[X]: the schema for X
+    # (whether a field is required is taken from the TypedDict itself)
+    if getattr(get_origin(type_hint), "_name", None) in _TYPEDDICT_QUALIFIER_NAMES:
+        return _python_type_to_json_schema(
+            get_args(type_hint)[0], description, _seen=_seen
+        )
+
+    # Handle basic types
+    if type_hint in _JSON_SCHEMA_TYPE_MAP:
+        schema = _JSON_SCHEMA_TYPE_MAP[type_hint].copy()
+        if description:
+            schema["description"] = description
+        return schema
+
+    # Handle Any type
+    if type_hint is Any:
+        schema = {}
+        if description:
+            schema["description"] = description
+        return schema
+
+    origin = get_origin(type_hint)
+    args = get_args(type_hint)
+
+    # Handle list[X]
+    if origin is list:
+        item_type = args[0] if args else Any
+        schema = {
+            "type": "array",
+            "items": _python_type_to_json_schema(item_type, _seen=_seen),
+        }
+        if description:
+            schema["description"] = description
+        return schema
+
+    # Handle tuple[X, ...] as array
+    if origin is tuple:
+        if args:
+            # For tuple[X, Y, Z], use items with prefixItems if different types
+            # For tuple[X, ...] use array
+            if len(args) == 2 and args[1] is ...:
+                schema = {
+                    "type": "array",
+                    "items": _python_type_to_json_schema(args[0], _seen=_seen),
+                }
+            else:
+                schema = {
+                    "type": "array",
+                    "prefixItems": [
+                        _python_type_to_json_schema(a, _seen=_seen) for a in args
+                    ],
+                    "minItems": len(args),
+                    "maxItems": len(args),
+                }
+        else:
+            schema = {"type": "array"}
+        if description:
+            schema["description"] = description
+        return schema
+
+    # Handle set[X] as array with uniqueItems
+    if origin is set or origin is frozenset:
+        item_type = args[0] if args else Any
+        schema = {
+            "type": "array",
+            "items": _python_type_to_json_schema(item_type, _seen=_seen),
+            "uniqueItems": True,
+        }
+        if description:
+            schema["description"] = description
+        return schema
+
+    # Handle dict[K, V]
+    if origin is dict:
+        if len(args) == 2:
+            value_type = args[1]
+            schema = {
+                "type": "object",
+                "additionalProperties": _python_type_to_json_schema(
+                    value_type, _seen=_seen
+                ),
+            }
+        else:
+            schema = {"type": "object"}
+        if description:
+            schema["description"] = description
+        return schema
+
+    # Handle Union types (including Optional which is Union[X, None])
+    # Check for types.UnionType (X | Y syntax in Python 3.10+)
+    is_union = origin is Union or isinstance(type_hint, types.UnionType)
+
+    if is_union:
+        # Check if this is Optional[X] (Union with None)
+        non_none_types = [a for a in args if a is not type(None)]
+        has_none = type(None) in args
+
+        if len(non_none_types) == 1 and has_none:
+            # This is Optional[X] - return schema for X
+            # The "required" handling happens at the parameter level
+            return _python_type_to_json_schema(
+                non_none_types[0], description, _seen=_seen
+            )
+
+        # Multiple types: use anyOf
+        schema = {"anyOf": [_python_type_to_json_schema(a, _seen=_seen) for a in args]}
+        if description:
+            schema["description"] = description
+        return schema
+
+    # Handle Literal types
+    if origin is Literal:
+        literal_values = list(args)
+        if not literal_values:
+            raise TypeError("Literal type must have at least one value")
+
+        # Only assign a JSON Schema "type" when every literal value maps to the
+        # same scalar type; a mixed-type Literal (e.g. Literal[1, "a"]) would
+        # otherwise produce an invalid/mislabeled schema (a string under
+        # "type": "integer"), so emit a bare enum in that case.
+        value_types = {_json_schema_type_of_value(v) for v in literal_values}
+        if len(value_types) == 1 and None not in value_types:
+            schema = {"type": value_types.pop(), "enum": literal_values}
+        else:
+            schema = {"enum": literal_values}
+
+        if description:
+            schema["description"] = description
+        return schema
+
+    # Handle TypedDict
+    if is_typeddict(type_hint):
+        # Break cycles in self-/mutually-referential TypedDicts
+        if id(type_hint) in _seen:
+            schema = {"type": "object"}
+            if description:
+                schema["description"] = description
+            return schema
+        # type_hint is guaranteed to be a TypedDict type here
+        return _typeddict_to_json_schema(
+            type_hint,  # type: ignore[arg-type]
+            description,
+            _seen | {id(type_hint)},
+        )
+
+    # Handle plain classes that might be dict-like or have annotations
+    if isinstance(type_hint, type):
+        # If it's a basic class without special handling, treat as object
+        if hasattr(type_hint, "__annotations__") and type_hint.__annotations__:
+            # Break cycles in self-/mutually-referential classes
+            if id(type_hint) in _seen:
+                schema = {"type": "object"}
+                if description:
+                    schema["description"] = description
+                return schema
+            # Class with annotations - try to convert
+            return _class_to_json_schema(
+                type_hint, description, _seen | {id(type_hint)}
+            )
+
+        # Fallback: treat as generic object
+        schema = {"type": "object"}
+        if description:
+            schema["description"] = description
+        return schema
+
+    # Unsupported type
+    raise TypeError(
+        f"Unsupported type hint for tool schema: {type_hint}. "
+        "Supported types: str, int, float, bool, None, list[T], dict[K,V], "
+        "tuple[T, ...], set[T], Optional[T], Union[...], Literal[...], TypedDict"
+    )
+
+
+def _typeddict_to_json_schema(
+    td_type: type,
+    description: str | None = None,
+    _seen: frozenset[int] = frozenset(),
+) -> dict[str, Any]:
+    """
+    Convert a TypedDict to a JSON Schema object.
+
+    :param td_type: The TypedDict type to convert.
+    :type td_type: type
+    :param description: Optional description to include in the schema.
+    :type description: str | None
+    :param _seen: Identities of class/TypedDict types currently being expanded,
+        used for cycle detection. Internal use only.
+    :type _seen: frozenset[int]
+    :returns: JSON Schema object.
+    :rtype: dict[str, Any]
+    """
+    hints = _resolve_type_hints(
+        td_type,
+        getattr(td_type, "__annotations__", {}),
+        f"`{getattr(td_type, '__name__', td_type)}`",
+    )
+
+    properties: dict[str, Any] = {}
+    for name, hint in hints.items():
+        properties[name] = _python_type_to_json_schema(hint, _seen=_seen)
+
+    # Get required keys (TypedDict has __required_keys__ and __optional_keys__)
+    required_keys = getattr(td_type, "__required_keys__", frozenset())
+    optional_keys = getattr(td_type, "__optional_keys__", frozenset())
+
+    # If neither is set, all keys are required by default
+    if not required_keys and not optional_keys:
+        required_names = set(hints)
+    else:
+        required_names = set(required_keys)
+
+    # The qualifier of a field takes precedence: with postponed evaluation of
+    # annotations (`from __future__ import annotations`), the qualifiers are
+    # not reflected in the required and optional keys of the TypedDict
+    for name, hint in hints.items():
+        qualifier = getattr(get_origin(hint), "_name", None)
+        if qualifier == "NotRequired":
+            required_names.discard(name)
+        elif qualifier == "Required":
+            required_names.add(name)
+    required = sorted(required_names)
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": properties,
+    }
+    if required:
+        schema["required"] = required
+    if description:
+        schema["description"] = description
+
+    return schema
+
+
+def _class_to_json_schema(
+    cls_type: type,
+    description: str | None = None,
+    _seen: frozenset[int] = frozenset(),
+) -> dict[str, Any]:
+    """
+    Convert a class with annotations to a JSON Schema object.
+
+    :param cls_type: The class type to convert.
+    :type cls_type: type
+    :param description: Optional description to include in the schema.
+    :type description: str | None
+    :param _seen: Identities of class/TypedDict types currently being expanded,
+        used for cycle detection. Internal use only.
+    :type _seen: frozenset[int]
+    :returns: JSON Schema object.
+    :rtype: dict[str, Any]
+    """
+    hints = _resolve_type_hints(
+        cls_type,
+        getattr(cls_type, "__annotations__", {}),
+        f"`{getattr(cls_type, '__name__', cls_type)}`",
+    )
+
+    properties: dict[str, Any] = {}
+    for name, hint in hints.items():
+        properties[name] = _python_type_to_json_schema(hint, _seen=_seen)
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": properties,
+        "required": sorted(hints.keys()),
+    }
+    if description:
+        schema["description"] = description
+
+    return schema
+
+
+def _generate_tool_schema(
+    func: Callable[..., Any],
+    parsed_docstring: _ParsedDocstring,
+) -> dict[str, Any]:
+    """
+    Generate an OpenAI-compatible tool schema from a Python function.
+
+    :param func: The function to generate a schema for.
+    :type func: Callable[..., Any]
+    :param parsed_docstring: Parsed docstring with summary and parameter descriptions.
+    :type parsed_docstring: _ParsedDocstring
+    :returns: OpenAI-compatible tool schema.
+    :rtype: dict[str, Any]
+    :raises TypeError: If a parameter has no type annotation, or if a type that
+        the type hints refer to by name is not found.
+    """
+    # Get function name
+    func_name = getattr(func, "__name__", None) or ""
+    if not func_name:
+        raise ValueError("Function must have a name")
+
+    # Get function signature
+    sig = inspect.signature(func)
+
+    # Get type hints, keeping the metadata of Annotated
+    hints = _resolve_type_hints(
+        func,
+        {
+            param_name: param.annotation
+            for param_name, param in sig.parameters.items()
+            if param.annotation is not param.empty
+        },
+        f"the tool `{func_name}`",
+    )
+
+    # Build properties and required list
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+
+    for param_name, param in sig.parameters.items():
+        # Skip *args and **kwargs
+        if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+            continue
+
+        # Get type hint
+        if param_name in hints:
+            type_hint = hints[param_name]
+        elif param.annotation is not param.empty:
+            type_hint = param.annotation
+        else:
+            raise TypeError(
+                f"Tool parameter '{param_name}' has no type annotation. "
+                "All tool parameters must have type hints."
+            )
+
+        # Warn if parameter uses set or tuple (received as list at runtime due to JSON)
+        if _contains_collection_type(type_hint, (set, frozenset)):
+            warnings.warn(
+                f"Tool parameter '{param_name}' uses 'set' type hint. "
+                "Since tool arguments are transmitted as JSON, this parameter will be "
+                "received as a Python 'list' at runtime. Convert inside your function "
+                "if you need set behavior: `{} = set({})`".format(
+                    param_name, param_name
+                ),
+                ContextGemWarning,
+                stacklevel=4,
+            )
+        elif _contains_collection_type(type_hint, (tuple,)):
+            warnings.warn(
+                f"Tool parameter '{param_name}' uses 'tuple' type hint. "
+                "Since tool arguments are transmitted as JSON, this parameter will be "
+                "received as a Python 'list' at runtime. Convert inside your function "
+                "if you need tuple behavior: `{} = tuple({})`".format(
+                    param_name, param_name
+                ),
+                ContextGemWarning,
+                stacklevel=4,
+            )
+
+        # Check if this is Optional (has default or is Optional[X])
+        is_optional = param.default is not param.empty
+        bare_type_hint = _strip_annotated(type_hint)
+        origin = get_origin(bare_type_hint)
+        args = get_args(bare_type_hint)
+
+        # Check for Union with None (Optional)
+        is_union_with_none = False
+        if origin is Union or isinstance(bare_type_hint, types.UnionType):
+            is_union_with_none = type(None) in args
+
+        if is_union_with_none:
+            is_optional = True
+
+        # Get parameter description from docstring. A description given
+        # in the metadata of Annotated takes precedence over it.
+        param_description = parsed_docstring.params.get(param_name)
+
+        # Convert type to JSON Schema
+        param_schema = _python_type_to_json_schema(type_hint, param_description)
+        properties[param_name] = param_schema
+
+        # Add to required list if not optional
+        if not is_optional:
+            required.append(param_name)
+
+    # Build the full tool schema
+    tool_description = parsed_docstring.summary
+    if parsed_docstring.description:
+        tool_description = (
+            f"{parsed_docstring.summary}\n\n{parsed_docstring.description}"
+        )
+
+    schema: dict[str, Any] = {
+        "type": "function",
+        "function": {
+            "name": func_name,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+            },
+        },
+    }
+
+    if tool_description:
+        schema["function"]["description"] = tool_description
+
+    if required:
+        schema["function"]["parameters"]["required"] = required  # ty: ignore[invalid-assignment]
+
+    return schema

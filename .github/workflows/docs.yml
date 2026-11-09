@@ -1,0 +1,87 @@
+name: build docs
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.13.6"
+
+jobs:
+  # A strict build on every push and pull request, so that a broken
+  # reference fails before it is merged. Only main, the release branch, is
+  # published: the site describes the released version.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # With the history and the tags: the check of the links reads the links of
+      # the releases from their tags. Without the token in .git/config, where
+      # checkout leaves it for the later steps, which push nothing
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Without the cache of uv for the build of main, which is published: a job
+      # of any workflow that runs on main writes the caches that main reads, so
+      # one that ran a compromised package could leave one for this build
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Set up Python from .python-version
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Build documentation
+        run: |
+          cd docs
+          uv run sphinx-build -b dirhtml source _build/dirhtml -v -E -W
+
+      # The links to the documentation site and to the repository, against the
+      # build and the working tree, which the release publishes, and those of the
+      # releases (dev/check_links.py). Offline: the links to other sites are
+      # checked weekly (links.yml)
+      - name: Check the links to the documentation and the repository
+        run: uv run python dev/check_links.py --build docs/_build/dirhtml
+
+      - name: Create .nojekyll file
+        run: touch docs/_build/dirhtml/.nojekyll
+
+      - name: Upload artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0
+        with:
+          path: ./docs/_build/dirhtml
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346  # v5.0.1

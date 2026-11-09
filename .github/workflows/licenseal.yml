@@ -1,0 +1,43 @@
+name: License compatibility
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.13.6"
+
+jobs:
+  licenseal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Without the token in .git/config, where checkout leaves it for the later
+      # steps, which push nothing
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Set up Python from .python-version
+        run: uv python install
+
+      # Strict by default: warnings/unknowns fail CI unless an explicit,
+      # documented override exists in licenseal.review.toml (picked up
+      # automatically from the repository root). The dependencies of the
+      # package only: the dev dependencies are not distributed with it.
+      # licenseal is the version in uv.lock, as locally.
+      - name: Check dependency license compatibility
+        run: uv run --locked licenseal check

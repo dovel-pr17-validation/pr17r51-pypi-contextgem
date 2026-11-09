@@ -1,0 +1,47 @@
+# Quick Start Example - Extracting concept from a document with an image
+
+import os
+from pathlib import Path
+
+from contextgem import Document, DocumentLLM, NumericalConcept, create_image
+
+
+# Path adapted for testing
+current_file = Path(__file__).resolve()
+root_path = current_file.parents[4]
+image_path = root_path / "tests" / "images" / "invoices" / "invoice.jpg"
+
+# Create an image instance using the create_image utility
+doc_image = create_image(image_path)
+
+# Example document instance holding only the image
+doc = Document(
+    images=[doc_image],  # may contain multiple images
+)
+
+# Define a concept to extract the invoice total amount
+doc_concept = NumericalConcept(
+    name="Invoice Total",
+    description="The total amount to be paid as shown on the invoice",
+    numeric_type="float",
+    modality="image",  # extract from the document images
+)
+
+# Add concept to the document
+doc.add_concepts([doc_concept])
+# (add more concepts to the document, if needed)
+
+# Create an LLM for extraction
+llm = DocumentLLM(
+    model="openai/gpt-6-luna",  # Using a model with vision capabilities
+    api_key=os.environ.get("CONTEXTGEM_OPENAI_API_KEY"),  # your API key
+)
+
+# Extract information from the document
+extracted_concepts = llm.extract_concepts_from_document(doc)
+# or use async version: await llm.extract_concepts_from_document_async(doc)
+
+# Access extracted information
+print("Invoice Total:")
+print(extracted_concepts[0].extracted_items)  # extracted concept items
+# or doc.get_concept_by_name("Invoice Total").extracted_items

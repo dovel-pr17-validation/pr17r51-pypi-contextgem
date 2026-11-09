@@ -1,0 +1,308 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Use the available tools to compute
+      a final amount. First call `get_order_total` with order_id=''ORD-123''. Then
+      call `get_discount_amount` with order_id=''ORD-123''. Then call `compute_final_amount`
+      using the exact outputs returned by the previous tools as order_total and discount.
+      Reply only with the number returned by `compute_final_amount`, nothing else.
+      Do not guess any values; you must call the tools."}],"model":"openai/gpt-oss-20b","seed":123,"tools":[{"type":"function","function":{"name":"get_order_total","parameters":{"type":"object","properties":{"order_id":{"type":"string"}},"required":["order_id"]},"description":"Returns
+      the total amount of the order."}},{"type":"function","function":{"name":"get_discount_amount","parameters":{"type":"object","properties":{"order_id":{"type":"string"}},"required":["order_id"]},"description":"Returns
+      the discount amount for the order."}},{"type":"function","function":{"name":"compute_final_amount","parameters":{"type":"object","properties":{"order_total":{"type":"string"},"discount":{"type":"string"}},"required":["order_total","discount"]},"description":"Computes
+      the final amount as the order total minus the discount."}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - DUMMY
+      connection:
+      - keep-alive
+      content-length:
+      - '1219'
+      content-type:
+      - application/json
+      host:
+      - DUMMY
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - other:amd64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - DUMMY
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - DUMMY
+    method: POST
+    uri: http://localhost:1234/v1/chat/completions
+  response:
+    body:
+      string: '{"id": "chatcmpl-DUMMY", "object": "chat.completion", "created": 1791481856,
+        "model": "openai/gpt-oss-20b", "choices": [{"index": 0, "message": {"role":
+        "assistant", "content": "", "reasoning": "Need to call functions sequentially.",
+        "tool_calls": [{"type": "function", "id": "D5DI9HnWOGDpzrYG3P7V7VgoCWQnk4Us",
+        "function": {"name": "get_order_total", "arguments": "{\"order_id\":\"ORD-123\"}"}}]},
+        "logprobs": null, "finish_reason": "tool_calls"}], "usage": {"prompt_tokens":
+        271, "completion_tokens": 35, "total_tokens": 306, "completion_tokens_details":
+        {"reasoning_tokens": 7}}, "stats": {}, "system_fingerprint": "openai/gpt-oss-20b"}'
+    headers:
+      connection:
+      - keep-alive
+      content-length:
+      - '893'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - DUMMY
+      etag:
+      - W/"37d-lnqpNe9COAAKi01G3vFXMYaBQRQ"
+      keep-alive:
+      - timeout=5
+      x-powered-by:
+      - Express
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"Use the available tools to compute
+      a final amount. First call `get_order_total` with order_id=''ORD-123''. Then
+      call `get_discount_amount` with order_id=''ORD-123''. Then call `compute_final_amount`
+      using the exact outputs returned by the previous tools as order_total and discount.
+      Reply only with the number returned by `compute_final_amount`, nothing else.
+      Do not guess any values; you must call the tools."},{"role":"assistant","tool_calls":[{"id":"D5DI9HnWOGDpzrYG3P7V7VgoCWQnk4Us","type":"function","function":{"name":"get_order_total","arguments":"{\"order_id\":\"ORD-123\"}"}}]},{"role":"tool","content":"9","tool_call_id":"D5DI9HnWOGDpzrYG3P7V7VgoCWQnk4Us","name":"get_order_total"}],"model":"openai/gpt-oss-20b","seed":123,"tools":[{"type":"function","function":{"name":"get_order_total","parameters":{"type":"object","properties":{"order_id":{"type":"string"}},"required":["order_id"]},"description":"Returns
+      the total amount of the order."}},{"type":"function","function":{"name":"get_discount_amount","parameters":{"type":"object","properties":{"order_id":{"type":"string"}},"required":["order_id"]},"description":"Returns
+      the discount amount for the order."}},{"type":"function","function":{"name":"compute_final_amount","parameters":{"type":"object","properties":{"order_total":{"type":"string"},"discount":{"type":"string"}},"required":["order_total","discount"]},"description":"Computes
+      the final amount as the order total minus the discount."}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - DUMMY
+      connection:
+      - keep-alive
+      content-length:
+      - '1499'
+      content-type:
+      - application/json
+      host:
+      - DUMMY
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - other:amd64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - DUMMY
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - DUMMY
+    method: POST
+    uri: http://localhost:1234/v1/chat/completions
+  response:
+    body:
+      string: '{"id": "chatcmpl-DUMMY", "object": "chat.completion", "created": 1791481857,
+        "model": "openai/gpt-oss-20b", "choices": [{"index": 0, "message": {"role":
+        "assistant", "content": "", "reasoning": "Now discount.", "tool_calls": [{"type":
+        "function", "id": "xAkxzJLAWQABDGNGaJLvocVfSCCig9VF", "function": {"name":
+        "get_discount_amount", "arguments": "{\"order_id\":\"ORD-123\"}"}}]}, "logprobs":
+        null, "finish_reason": "tool_calls"}], "usage": {"prompt_tokens": 310, "completion_tokens":
+        30, "total_tokens": 340, "completion_tokens_details": {"reasoning_tokens":
+        3}}, "stats": {}, "system_fingerprint": "openai/gpt-oss-20b"}'
+    headers:
+      connection:
+      - keep-alive
+      content-length:
+      - '875'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - DUMMY
+      etag:
+      - W/"36b-gmfg+r9qN+iOfUH6Zn3/jl3heRs"
+      keep-alive:
+      - timeout=5
+      x-powered-by:
+      - Express
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"Use the available tools to compute
+      a final amount. First call `get_order_total` with order_id=''ORD-123''. Then
+      call `get_discount_amount` with order_id=''ORD-123''. Then call `compute_final_amount`
+      using the exact outputs returned by the previous tools as order_total and discount.
+      Reply only with the number returned by `compute_final_amount`, nothing else.
+      Do not guess any values; you must call the tools."},{"role":"assistant","tool_calls":[{"id":"D5DI9HnWOGDpzrYG3P7V7VgoCWQnk4Us","type":"function","function":{"name":"get_order_total","arguments":"{\"order_id\":\"ORD-123\"}"}}]},{"role":"tool","content":"9","tool_call_id":"D5DI9HnWOGDpzrYG3P7V7VgoCWQnk4Us","name":"get_order_total"},{"role":"assistant","tool_calls":[{"id":"xAkxzJLAWQABDGNGaJLvocVfSCCig9VF","type":"function","function":{"name":"get_discount_amount","arguments":"{\"order_id\":\"ORD-123\"}"}}]},{"role":"tool","content":"4","tool_call_id":"xAkxzJLAWQABDGNGaJLvocVfSCCig9VF","name":"get_discount_amount"}],"model":"openai/gpt-oss-20b","seed":123,"tools":[{"type":"function","function":{"name":"get_order_total","parameters":{"type":"object","properties":{"order_id":{"type":"string"}},"required":["order_id"]},"description":"Returns
+      the total amount of the order."}},{"type":"function","function":{"name":"get_discount_amount","parameters":{"type":"object","properties":{"order_id":{"type":"string"}},"required":["order_id"]},"description":"Returns
+      the discount amount for the order."}},{"type":"function","function":{"name":"compute_final_amount","parameters":{"type":"object","properties":{"order_total":{"type":"string"},"discount":{"type":"string"}},"required":["order_total","discount"]},"description":"Computes
+      the final amount as the order total minus the discount."}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - DUMMY
+      connection:
+      - keep-alive
+      content-length:
+      - '1787'
+      content-type:
+      - application/json
+      host:
+      - DUMMY
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - other:amd64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - DUMMY
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - DUMMY
+    method: POST
+    uri: http://localhost:1234/v1/chat/completions
+  response:
+    body:
+      string: '{"id": "chatcmpl-DUMMY", "object": "chat.completion", "created": 1791481857,
+        "model": "openai/gpt-oss-20b", "choices": [{"index": 0, "message": {"role":
+        "assistant", "content": "", "reasoning": "Now compute final amount: 9 - 4
+        = 5. Use function.", "tool_calls": [{"type": "function", "id": "YqM74glFfglrNHeRGwF8vU8x7xvdouwK",
+        "function": {"name": "compute_final_amount", "arguments": "{\"order_total\":\"9\",\"discount\":\"4\"}"}}]},
+        "logprobs": null, "finish_reason": "tool_calls"}], "usage": {"prompt_tokens":
+        349, "completion_tokens": 46, "total_tokens": 395, "completion_tokens_details":
+        {"reasoning_tokens": 17}}, "stats": {}, "system_fingerprint": "openai/gpt-oss-20b"}'
+    headers:
+      connection:
+      - keep-alive
+      content-length:
+      - '930'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - DUMMY
+      etag:
+      - W/"3a2-ieg2HJT3iSkKb6lCQvvHkCUCA2g"
+      keep-alive:
+      - timeout=5
+      x-powered-by:
+      - Express
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"Use the available tools to compute
+      a final amount. First call `get_order_total` with order_id=''ORD-123''. Then
+      call `get_discount_amount` with order_id=''ORD-123''. Then call `compute_final_amount`
+      using the exact outputs returned by the previous tools as order_total and discount.
+      Reply only with the number returned by `compute_final_amount`, nothing else.
+      Do not guess any values; you must call the tools."},{"role":"assistant","tool_calls":[{"id":"D5DI9HnWOGDpzrYG3P7V7VgoCWQnk4Us","type":"function","function":{"name":"get_order_total","arguments":"{\"order_id\":\"ORD-123\"}"}}]},{"role":"tool","content":"9","tool_call_id":"D5DI9HnWOGDpzrYG3P7V7VgoCWQnk4Us","name":"get_order_total"},{"role":"assistant","tool_calls":[{"id":"xAkxzJLAWQABDGNGaJLvocVfSCCig9VF","type":"function","function":{"name":"get_discount_amount","arguments":"{\"order_id\":\"ORD-123\"}"}}]},{"role":"tool","content":"4","tool_call_id":"xAkxzJLAWQABDGNGaJLvocVfSCCig9VF","name":"get_discount_amount"},{"role":"assistant","tool_calls":[{"id":"YqM74glFfglrNHeRGwF8vU8x7xvdouwK","type":"function","function":{"name":"compute_final_amount","arguments":"{\"order_total\":\"9\",\"discount\":\"4\"}"}}]},{"role":"tool","content":"5","tool_call_id":"YqM74glFfglrNHeRGwF8vU8x7xvdouwK","name":"compute_final_amount"}],"model":"openai/gpt-oss-20b","seed":123,"tools":[{"type":"function","function":{"name":"get_order_total","parameters":{"type":"object","properties":{"order_id":{"type":"string"}},"required":["order_id"]},"description":"Returns
+      the total amount of the order."}},{"type":"function","function":{"name":"get_discount_amount","parameters":{"type":"object","properties":{"order_id":{"type":"string"}},"required":["order_id"]},"description":"Returns
+      the discount amount for the order."}},{"type":"function","function":{"name":"compute_final_amount","parameters":{"type":"object","properties":{"order_total":{"type":"string"},"discount":{"type":"string"}},"required":["order_total","discount"]},"description":"Computes
+      the final amount as the order total minus the discount."}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - DUMMY
+      connection:
+      - keep-alive
+      content-length:
+      - '2093'
+      content-type:
+      - application/json
+      host:
+      - DUMMY
+      user-agent:
+      - OpenAI/Python 2.54.0
+      x-stainless-arch:
+      - other:amd64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - DUMMY
+      x-stainless-package-version:
+      - 2.54.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - DUMMY
+    method: POST
+    uri: http://localhost:1234/v1/chat/completions
+  response:
+    body:
+      string: '{"id": "chatcmpl-DUMMY", "object": "chat.completion", "created": 1791481857,
+        "model": "openai/gpt-oss-20b", "choices": [{"index": 0, "message": {"role":
+        "assistant", "content": "5", "reasoning": "", "tool_calls": []}, "logprobs":
+        null, "finish_reason": "stop"}], "usage": {"prompt_tokens": 392, "completion_tokens":
+        5, "total_tokens": 397, "completion_tokens_details": {"reasoning_tokens":
+        0}}, "stats": {}, "system_fingerprint": "openai/gpt-oss-20b"}'
+    headers:
+      connection:
+      - keep-alive
+      content-length:
+      - '596'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - DUMMY
+      etag:
+      - W/"254-Bjkcnc90hqYwCOH1qYKpc4Pfy0o"
+      keep-alive:
+      - timeout=5
+      x-powered-by:
+      - Express
+    status:
+      code: 200
+      message: OK
+version: 1

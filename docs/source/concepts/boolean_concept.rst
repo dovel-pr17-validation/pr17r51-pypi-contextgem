@@ -1,0 +1,148 @@
+.. meta::
+   :description: How to get true/false answers about a document or an aspect with BooleanConcept, e.g. whether it contains a clause or meets a condition.
+
+BooleanConcept
+==============
+
+:class:`~contextgem.public.concepts.BooleanConcept` is a specialized concept type that evaluates document content and produces True/False assessments based on specific criteria, conditions, or properties you define.
+
+
+📝 Overview
+-------------
+
+:class:`~contextgem.public.concepts.BooleanConcept` is used when you need to determine if a document contains or satisfies specific attributes, properties, or conditions that can be represented as True or False values, such as:
+
+* **Presence checks**: contains confidential information, includes specific clauses, mentions certain topics
+* **Compliance assessments**: meets regulatory requirements, follows specific formatting standards
+* **Binary classifications**: is favorable/unfavorable, is complete/incomplete, is approved/rejected
+
+
+💻 Usage Example
+------------------
+
+Here's a simple example of how to use :class:`~contextgem.public.concepts.BooleanConcept` to determine if a document mentions confidential information:
+
+.. literalinclude:: ../../../dev/usage_examples/docs/concepts/boolean_concept/boolean_concept.py
+   :language: python
+
+
+⚙️ Parameters
+--------------
+
+When creating a :class:`~contextgem.public.concepts.BooleanConcept`, you can specify the following parameters:
+
+.. list-table::
+   :widths: 20 15 15 50
+   :header-rows: 1
+
+   * - Parameter
+     - Type
+     - Default Value
+     - Description
+   * - ``name``
+     - ``str``
+     - (Required)
+     - A unique name identifier for the concept
+   * - ``description``
+     - ``str``
+     - (Required)
+     - A clear description of what condition or property the concept evaluates and the criteria for determining true or false values
+   * - ``model_role``
+     - ``str | None``
+     - ``None``
+     - The role label of the model that extracts the concept when a model group is used: the concept is routed to the model in the group with the same ``role``. With the default ``None``, the concept is routed to the model without a role. Ignored when a single model is used, as it extracts every concept it is given. For more details, see :ref:`model-roles-label`.
+   * - ``modality``
+     - ``str``
+     - ``"text"``
+     - The document content the concept is extracted from. Available values: ``"text"``, ``"image"``, ``"multimodal"`` (text and/or images, whichever the document has). ``"image"`` and ``"multimodal"`` are supported for document-level concepts only, and require an LLM that supports vision when the document has images. A concept with ``"image"`` cannot have ``add_references=True``. A decision model extracts from text only, and rejects ``"image"`` and ``"multimodal"`` with ``ValueError`` before any request is sent (see :ref:`decision-models-supported-label`). For more details, see :ref:`concept-modality-label`.
+   * - ``add_justifications``
+     - ``bool``
+     - ``False``
+     - Whether to include justifications for extracted items. Justifications provide explanations of why the LLM extracted specific values and the reasoning behind the extraction, which is especially useful for complex extractions or when debugging results. A decision model provides no justifications, and rejects ``True`` with ``ValueError`` before any request is sent (see :ref:`decision-models-supported-label`).
+   * - ``justification_depth``
+     - ``str``
+     - ``"brief"``
+     - Justification detail level. Available values: ``"brief"``, ``"balanced"``, ``"comprehensive"``. Concepts that differ in it, or in another of the extraction parameters, e.g. ``add_references``, are extracted in separate calls, each a request of its own (see :ref:`the extraction methods <llm-extraction-params-label>`).
+   * - ``justification_max_sents``
+     - ``int``
+     - ``2``
+     - Maximum sentences in a justification.
+   * - ``add_references``
+     - ``bool``
+     - ``False``
+     - Whether to include source references for extracted items. References indicate the specific locations in the document where evidence supporting the boolean determination was found, helping to trace back the true/false value to relevant content that influenced the decision. A decision model provides no references for concepts, and rejects ``True`` with ``ValueError`` before any request is sent (see :ref:`decision-models-supported-label`).
+   * - ``reference_depth``
+     - ``str``
+     - ``"paragraphs"``
+     - Source reference granularity. Available values: ``"paragraphs"``, ``"sentences"``.
+   * - ``decision_threshold``
+     - ``float | None``
+     - ``None``
+     - Relevant when the concept is extracted by a decision model (:class:`~contextgem.public.decision_models.DocumentDecisionModel`): the lowest probability of "yes" (above 0, up to 1) with which the value of the concept is set to ``True``. With the default ``None``, the ``decision_threshold`` of the decision model applies. Ignored when the concept is extracted by an LLM. See :ref:`decision-models-threshold-label`.
+   * - ``singular_occurrence``
+     - ``bool``
+     - ``False``
+     - Whether this concept has at most one extracted item. If ``True``, at most one item is extracted, and none if there is nothing to extract: an LLM that returns more than one is asked again, as for any other invalid data. For boolean concepts, this parameter is particularly useful when you want to make a single true/false determination about the entire document (e.g., "contains confidential information") or a unique determination about a specific matter (e.g., "is the payment schedule finalized"). This helps distinguish between evaluating overall document properties versus identifying multiple instances where a condition might be true/false. Without it, an LLM infers the number of items from the name and the description of the concept. With a decision model (:class:`~contextgem.public.decision_models.DocumentDecisionModel`), a concept gets at most one item with or without this parameter, unless the text is sent in parts, i.e. ``max_paragraphs_to_analyze_per_call`` is passed to the extraction method: a decision model then returns an item for each part, and rejects a concept with ``singular_occurrence=True`` with ``ValueError`` before any request is sent. See :ref:`sending a long text in parts <decision-models-parts-label>`.
+   * - ``custom_data``
+     - ``dict``
+     - ``{}``
+     - Optional. Dictionary for storing any additional data that you want to associate with the concept. This data must be JSON-serializable. This data is not used for extraction but can be useful for custom processing or downstream tasks.
+
+
+🚀 Advanced Usage
+--------------------
+
+🔍 References and Justifications for Extraction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can configure a :class:`~contextgem.public.concepts.BooleanConcept` to include justifications and references. Justifications help explain the reasoning behind true/false determinations, while references point to the specific parts of the document that influenced the decision:
+
+.. literalinclude:: ../../../dev/usage_examples/docs/concepts/boolean_concept/refs_and_justifications.py
+   :language: python
+
+
+📊 Extracted Items
+--------------------
+
+When a :class:`~contextgem.public.concepts.BooleanConcept` is extracted, it is populated with **a list of extracted items** accessible through the ``.extracted_items`` property. Each item has the following attributes:
+
+.. list-table::
+   :widths: 20 20 60
+   :header-rows: 1
+
+   * - Attribute
+     - Type
+     - Description
+   * - ``value``
+     - bool
+     - The extracted boolean value (True or False)
+   * - ``justification``
+     - str
+     - Explanation of why this boolean value was determined (only if ``add_justifications=True``)
+   * - ``probabilities``
+     - dict[bool, float]
+     - Probabilities of ``True`` and ``False``, e.g. ``{True: 0.83, False: 0.17}`` (only if the concept is extracted by a decision model, ``None`` otherwise; see :ref:`decision-models-probabilities-label`)
+   * - ``reference_paragraphs``
+     - list[:class:`~contextgem.public.paragraphs.Paragraph`]
+     - List of paragraph objects that influenced the boolean determination (only if ``add_references=True``)
+   * - ``reference_sentences``
+     - list[:class:`~contextgem.public.sentences.Sentence`]
+     - List of sentence objects that influenced the boolean determination (only if ``add_references=True`` and ``reference_depth="sentences"``)
+   * - ``reference_page_numbers``
+     - list[int]
+     - Numbers of the pages that the reference paragraphs and sentences are on, e.g. in a document created from a file converted with Docling (see :doc:`../documents/docling`) (only if ``add_references=True``). Empty if the references have no page numbers
+
+.. note::
+   To find the position of a reference paragraph or sentence in the document, e.g. to cite it or to retrieve its surrounding context, see :ref:`locating-paras-and-sents`.
+
+
+💡 Best Practices
+-------------------
+
+Here are some best practices to optimize your use of :class:`~contextgem.public.concepts.BooleanConcept`:
+
+- Provide a clear and specific description that helps the LLM understand exactly what condition to evaluate, using precise and unambiguous language in your concept names and descriptions. Since boolean concepts yield true/false values, focus on describing what criteria should be used to make the determination (e.g., *"whether the document mentions specific compliance requirements"* rather than just *"compliance requirements"*). Avoid vague terms that could be interpreted multiple ways—for example, use *"contains legally binding obligations"* instead of *"contains important content"* to ensure consistent and accurate determinations.
+- Break down complex conditions into multiple simpler boolean concepts when appropriate. Instead of one concept checking *"document is complete and compliant and approved,"* consider separate concepts for each condition. This provides more granular insights and makes it easier to identify specific issues when any condition fails.
+- Enable justifications (using ``add_justifications=True``) when you need to understand the reasoning behind the LLM's true/false determination.
+- Enable references (using ``add_references=True``) when you need to trace back to specific parts of the document that influenced the boolean decision or verify the evidence used to make the determination.
+- Use ``singular_occurrence=True`` to enforce only a single boolean determination for the entire document. This is particularly useful for concepts that should yield a single true/false answer, such as *"contains confidential information"* or *"is compliant with regulations,"* rather than identifying multiple instances where the condition might be true or false throughout the document.

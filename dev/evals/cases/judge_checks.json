@@ -1,0 +1,1422 @@
+[
+  {
+    "id": "complex_nda-value-purpose-paraphrase",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "document",
+    "concept": "NDA permitted purpose",
+    "candidate": {
+      "values": [
+        "Assessing a potential minority investment by the Recipient into the Discloser's marine sensor business, as part of Project Glassfinch."
+      ]
+    },
+    "expected": true,
+    "note": "Same transaction type, investor, business and project as the reference, in other words."
+  },
+  {
+    "id": "complex_nda-value-purpose-reordered",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "document",
+    "concept": "NDA permitted purpose",
+    "candidate": {
+      "values": [
+        "Project Glassfinch: Talus Ventures AB considering whether to take a minority stake in the marine sensor business of FjordSignal AS."
+      ]
+    },
+    "expected": true,
+    "note": "Leads with the project and names the parties by their Section 1.1 legal names, keeping the minority investment and the marine sensor business."
+  },
+  {
+    "id": "complex_nda-value-purpose-majority",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "document",
+    "concept": "NDA permitted purpose",
+    "candidate": {
+      "values": [
+        "Evaluating a possible majority investment by the Recipient in the Discloser's marine sensor business under Project Glassfinch."
+      ]
+    },
+    "expected": false,
+    "note": "Section 1.2 permits evaluating a minority investment, not a majority one."
+  },
+  {
+    "id": "complex_nda-value-purpose-parties-swapped",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "document",
+    "concept": "NDA permitted purpose",
+    "candidate": {
+      "values": [
+        "Evaluating a possible minority investment by FjordSignal AS in Talus Ventures AB's marine sensor business under Project Glassfinch."
+      ]
+    },
+    "expected": false,
+    "note": "Swaps the parties: the Recipient Talus Ventures AB would invest in the marine sensor business of the Discloser FjordSignal AS, not the reverse."
+  },
+  {
+    "id": "complex_nda-value-forum-paraphrase",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "document",
+    "concept": "NDA contractual forum",
+    "candidate": {
+      "values": [
+        "The Oslo courts"
+      ]
+    },
+    "expected": true,
+    "note": "Names the same courts as the reference in other words."
+  },
+  {
+    "id": "complex_nda-value-forum-reordered",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "document",
+    "concept": "NDA contractual forum",
+    "candidate": {
+      "values": [
+        "The parties designated the courts in Oslo, Norway."
+      ]
+    },
+    "expected": true,
+    "note": "A full sentence naming the courts of Oslo as the designated forum."
+  },
+  {
+    "id": "complex_nda-value-forum-stockholm",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "document",
+    "concept": "NDA contractual forum",
+    "candidate": {
+      "values": [
+        "Courts of Stockholm"
+      ]
+    },
+    "expected": false,
+    "note": "Section 1.4 designates the courts of Oslo, not of Stockholm."
+  },
+  {
+    "id": "complex_nda-value-forum-governing-law",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "document",
+    "concept": "NDA contractual forum",
+    "candidate": {
+      "values": [
+        "Norwegian law"
+      ]
+    },
+    "expected": false,
+    "note": "Gives the governing law instead of the contractual forum, which Section 1.4 sets as the courts of Oslo."
+  },
+  {
+    "id": "complex_nda-value-oracle-timeline-paraphrase",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "aspect: NDA information protection",
+    "concept": "ORACLE protection timeline",
+    "candidate": {
+      "values": [
+        "From the oral disclosure on 25 March, ORACLE has provisional protection until the confirmation deadline, 5 April 2027 at 17:00 UTC. The confirmation was sent before that deadline but only reached the Recipient on 6 April at 09:05, so it was late and protection ends at the deadline. Protection starts again, for the future only, when the Recipient expressly accepts in writing on 8 April at 10:00 UTC; the period in between stays unprotected."
+      ]
+    },
+    "expected": true,
+    "note": "Gives the same protected periods, the same gap and the same reason (arrival, not sending) as the reference, in other words."
+  },
+  {
+    "id": "complex_nda-value-oracle-timeline-reordered",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "aspect: NDA information protection",
+    "concept": "ORACLE protection timeline",
+    "candidate": {
+      "values": [
+        "Not continuous: ORACLE is protected provisionally from 25 March until 17:00 UTC on 5 April 2027, unprotected from then until 10:00 UTC on 8 April, and protected again from the Recipient's express acceptance at that time, without retroactive effect. The gap arises because timeliness depends on arrival (6 April, 09:05), not on sending (5 April, 16:58)."
+      ]
+    },
+    "expected": true,
+    "note": "Lists the periods first and the reason after, with the same dates, times and prospective-only restoration as the reference."
+  },
+  {
+    "id": "complex_nda-value-oracle-timeline-wrong-deadline",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "aspect: NDA information protection",
+    "concept": "ORACLE protection timeline",
+    "candidate": {
+      "values": [
+        "ORACLE is provisionally protected from the 25 March oral disclosure until 1 April 2027 at 17:00 UTC. The confirmation, sent on 5 April at 16:58, arrived on 6 April at 09:05, after that deadline, so protection lapses after the deadline. It resumes prospectively when the Recipient expressly accepts on 8 April at 10:00 UTC; the gap is not cured retroactively."
+      ]
+    },
+    "expected": false,
+    "note": "Wrong deadline: with 26 and 29 March excluded, the fifth Business Day after 25 March is 5 April, so provisional protection runs until 5 April at 17:00 UTC, not 1 April."
+  },
+  {
+    "id": "complex_nda-value-oracle-timeline-sending-as-delivery",
+    "kind": "value",
+    "case": "complex_nda",
+    "context": "aspect: NDA information protection",
+    "concept": "ORACLE protection timeline",
+    "candidate": {
+      "values": [
+        "ORACLE is protected continuously from the 25 March oral disclosure: the written confirmation was sent on 5 April at 16:58, before the 17:00 UTC deadline, so it was timely, and the Recipient's acceptance on 8 April at 10:00 merely confirms the position. There is no gap in protection."
+      ]
+    },
+    "expected": false,
+    "note": "Treats sending as delivery: under Section 2.4 the confirmation was delivered when it arrived on 6 April at 09:05, late, so protection lapses after 5 April at 17:00 UTC until the acceptance on 8 April."
+  },
+  {
+    "id": "complex_dpa-value-breach-summary-paraphrase",
+    "kind": "value",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Breach notification obligation summary",
+    "candidate": {
+      "values": [
+        "Once it becomes aware of a Personal Data Breach affecting Personal Data processed under the DPA, the Processor must notify the Controller without undue delay and at the latest within 24 hours, describing the nature of the breach, the categories and approximate number of Data Subjects and records concerned, its likely consequences, and the measures taken or proposed to address it and mitigate its adverse effects. The Processor must also keep a record of every breach and cooperate with the Controller on any notifications to Supervisory Authorities or communications to Data Subjects that the Controller decides are required."
+      ]
+    },
+    "expected": true,
+    "note": "Same 24-hour limit, notice content, documentation and cooperation duties as the reference, in other words."
+  },
+  {
+    "id": "complex_dpa-value-breach-summary-shorter",
+    "kind": "value",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Breach notification obligation summary",
+    "candidate": {
+      "values": [
+        "Within 24 hours of becoming aware of a breach, and without undue delay, the Processor notifies the Controller of the breach's nature, the categories and approximate numbers of affected Data Subjects and records, the likely consequences and the remedial and mitigating measures; it also documents every breach and assists with whatever regulatory or Data Subject notifications the Controller requires."
+      ]
+    },
+    "expected": true,
+    "note": "A shorter single sentence that leads with the 24-hour limit and keeps every element of the reference."
+  },
+  {
+    "id": "complex_dpa-value-breach-summary-48-hours",
+    "kind": "value",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Breach notification obligation summary",
+    "candidate": {
+      "values": [
+        "Without undue delay and in any case within 48 hours of becoming aware of a Personal Data Breach affecting Personal Data processed under the DPA, the Processor must notify the Controller, setting out the nature of the breach, the categories and approximate number of Data Subjects and records concerned, the likely consequences and the measures taken or proposed to address and mitigate it; it must also document all breaches and cooperate with any notifications or communications the Controller determines are required."
+      ]
+    },
+    "expected": false,
+    "note": "States the original 48-hour limit of Section 8.1, which A2.1 replaced with 24 hours from 1 October 2026."
+  },
+  {
+    "id": "complex_dpa-value-breach-summary-expedited-12-hours",
+    "kind": "value",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Breach notification obligation summary",
+    "candidate": {
+      "values": [
+        "The Processor must notify the Controller without undue delay, and within 24 hours of becoming aware of a Personal Data Breach (within 12 hours of original awareness where usable privileged credentials are exposed), describing its nature, the categories and approximate numbers of affected Data Subjects and records, the likely consequences and the measures taken or proposed. It must document every breach and cooperate with the notifications to Supervisory Authorities or Data Subjects that the Controller determines are required."
+      ]
+    },
+    "expected": false,
+    "note": "Adds the 12-hour expedited limit for exposed privileged credentials, which comes from Amendment No. 2 and applies only from 1 March 2027, not on 1 November 2026."
+  },
+  {
+    "id": "complex_dpa-value-email-providers-paraphrase",
+    "kind": "value",
+    "case": "complex_dpa",
+    "context": "aspect: Supplier approvals in May 2027",
+    "concept": "Ordinary customer email providers on 10 May 2027",
+    "candidate": {
+      "values": [
+        "Cendrillon Mail S.A.S."
+      ]
+    },
+    "expected": true,
+    "note": "The same single legal entity, with its company form written with periods."
+  },
+  {
+    "id": "complex_dpa-value-email-providers-with-country",
+    "kind": "value",
+    "case": "complex_dpa",
+    "context": "aspect: Supplier approvals in May 2027",
+    "concept": "Ordinary customer email providers on 10 May 2027",
+    "candidate": {
+      "values": [
+        "Only Cendrillon Mail SAS, registered in France"
+      ]
+    },
+    "expected": true,
+    "note": "The same single entity, with its country of registration added."
+  },
+  {
+    "id": "complex_dpa-value-email-providers-extra-meridian",
+    "kind": "value",
+    "case": "complex_dpa",
+    "context": "aspect: Supplier approvals in May 2027",
+    "concept": "Ordinary customer email providers on 10 May 2027",
+    "candidate": {
+      "values": [
+        "Cendrillon Mail SAS",
+        "Meridian Mail Ltd"
+      ]
+    },
+    "expected": false,
+    "note": "Meridian's permission running on 10 May is limited to IR-27 incident notices and does not cover ordinary customer transactional email (B4.3, R3.5)."
+  },
+  {
+    "id": "complex_dpa-value-email-providers-extra-nordlicht",
+    "kind": "value",
+    "case": "complex_dpa",
+    "context": "aspect: Supplier approvals in May 2027",
+    "concept": "Ordinary customer email providers on 10 May 2027",
+    "candidate": {
+      "values": [
+        "Cendrillon Mail SAS",
+        "Nordlicht Cloud AB"
+      ]
+    },
+    "expected": false,
+    "note": "Nordlicht's Finland email service has no written Controller consent, so its completed security review and proposed 1 May start do not authorise it (B4.1, R3.2)."
+  },
+  {
+    "id": "complex_mcu-value-es08-workaround-paraphrase",
+    "kind": "value",
+    "case": "complex_mcu",
+    "context": "aspect: Device limitations of revision C",
+    "concept": "ES-08 workaround",
+    "candidate": {
+      "values": [
+        "Following each bus-off recovery, write FDCAN_TDCR once more before INIT is cleared."
+      ]
+    },
+    "expected": true,
+    "note": "Same register, same trigger and same timing as the reference, in other words."
+  },
+  {
+    "id": "complex_mcu-value-es08-workaround-reordered",
+    "kind": "value",
+    "case": "complex_mcu",
+    "context": "aspect: Device limitations of revision C",
+    "concept": "ES-08 workaround",
+    "candidate": {
+      "values": [
+        "Before clearing INIT at the end of every bus-off recovery, program the TDCO offset into FDCAN_TDCR again."
+      ]
+    },
+    "expected": true,
+    "note": "Reverses the order of the clauses and names the TDCO offset that the register holds, with the same action and timing."
+  },
+  {
+    "id": "complex_mcu-value-es08-workaround-after-init",
+    "kind": "value",
+    "case": "complex_mcu",
+    "context": "aspect: Device limitations of revision C",
+    "concept": "ES-08 workaround",
+    "candidate": {
+      "values": [
+        "Write FDCAN_TDCR again after each bus-off recovery, once INIT has been cleared."
+      ]
+    },
+    "expected": false,
+    "note": "Wrong timing: the register must be written again before INIT is cleared, not after."
+  },
+  {
+    "id": "complex_mcu-value-es08-workaround-software-recovery",
+    "kind": "value",
+    "case": "complex_mcu",
+    "context": "aspect: Device limitations of revision C",
+    "concept": "ES-08 workaround",
+    "candidate": {
+      "values": [
+        "Disable automatic bus-off recovery and perform the recovery by software instead."
+      ]
+    },
+    "expected": false,
+    "note": "ES-08 occurs with a bus-off recovery whether automatic or by software; the workaround is to write FDCAN_TDCR again after each recovery, before INIT is cleared."
+  },
+  {
+    "id": "complex_nda-justification-oracle-deadline-correct",
+    "kind": "justification",
+    "case": "complex_nda",
+    "context": "aspect: NDA information protection",
+    "concept": "ORACLE timely confirmation deadline",
+    "candidate": {
+      "value": "2027-04-05",
+      "justification": "Counting from the day after the Thursday 25 March call and skipping 26 and 29 March and the weekend, the five Business Days are 30 and 31 March and 1, 2 and 5 April, so confirmation had to be delivered by 17:00 UTC on 5 April."
+    },
+    "expected": true,
+    "note": "Same exclusions and count as the reference, in other words."
+  },
+  {
+    "id": "complex_nda-justification-oracle-deadline-excluded-days-counted",
+    "kind": "justification",
+    "case": "complex_nda",
+    "context": "aspect: NDA information protection",
+    "concept": "ORACLE timely confirmation deadline",
+    "candidate": {
+      "value": "2027-04-01",
+      "justification": "The five Business Days after the Thursday 25 March call are 26, 29, 30 and 31 March and 1 April, so the confirmation deadline is 1 April at 17:00 UTC."
+    },
+    "expected": false,
+    "note": "Counts 26 and 29 March, which Section 2.3 excludes as Business Days; the deadline is 5 April."
+  },
+  {
+    "id": "complex_nda-justification-talus-votes-correct",
+    "kind": "justification",
+    "case": "complex_nda",
+    "context": "aspect: NDA recipient permissions",
+    "concept": "Talus Research qualifying voting percentage",
+    "candidate": {
+      "value": 52,
+      "justification": "Only the votes held directly (48 percent) and those under the presently effective irrevocable proxy (4 percent) count, totalling 52 percent; the revocable 6 percent proxy, the non-voting preference shares, the board-appointment right and the 61 percent economic interest are disregarded."
+    },
+    "expected": true,
+    "note": "Same countable votes and exclusions as the reference, in other words."
+  },
+  {
+    "id": "complex_nda-justification-talus-votes-revocable-proxy-counted",
+    "kind": "justification",
+    "case": "complex_nda",
+    "context": "aspect: NDA recipient permissions",
+    "concept": "Talus Research qualifying voting percentage",
+    "candidate": {
+      "value": 58,
+      "justification": "At the snapshot the Recipient can exercise its 48 percent of direct votes, the 4 percent under the irrevocable proxy and the further 6 percent under the other proxy, which gives 58 percent."
+    },
+    "expected": false,
+    "note": "Counts the 6 percent covered only by a revocable proxy, which Section 4.2 excludes; the qualifying share is 52 percent."
+  },
+  {
+    "id": "complex_nda-justification-lumen-access-correct",
+    "kind": "justification",
+    "case": "complex_nda",
+    "context": "aspect: NDA recipient permissions",
+    "concept": "People permitted LUMEN access at the September snapshot",
+    "candidate": {
+      "value": [
+        "Elin",
+        "Marek",
+        "Oskar"
+      ],
+      "justification": "Elin, an own employee, and Marek, employed by Talus Research AB, an Affiliate at 52 percent of the votes, meet every condition by the snapshot, and Oskar's professional duty of confidence replaces the undertaking alongside his security check and clean-room approval. Nora's undertaking only took effect on 16 September, Pia has no signed competitor-access consent, and Ravi's employer carries only 45 percent of the votes."
+    },
+    "expected": true,
+    "note": "Same three people and the same reason for each exclusion as the reference, in other words."
+  },
+  {
+    "id": "complex_nda-justification-lumen-access-adviser-excluded",
+    "kind": "justification",
+    "case": "complex_nda",
+    "context": "aspect: NDA recipient permissions",
+    "concept": "People permitted LUMEN access at the September snapshot",
+    "candidate": {
+      "value": [
+        "Elin",
+        "Marek"
+      ],
+      "justification": "Elin and Marek have an effective undertaking, security check and named clean-room approval at the snapshot. Oskar has signed no written undertaking, which Section 4.1 requires before access, and Nora, Pia and Ravi each fail a condition of their own."
+    },
+    "expected": false,
+    "note": "Excludes Oskar, although Sections 4.1 and 4.3 let a professional adviser's duty of confidence substitute for the written undertaking."
+  },
+  {
+    "id": "complex_nda-justification-q27-lateness-correct",
+    "kind": "justification",
+    "case": "complex_nda",
+    "context": "aspect: NDA compulsory disclosure Q-27",
+    "concept": "Q-27 notice lateness in minutes",
+    "candidate": {
+      "value": 35,
+      "justification": "Since notice was initially prohibited, the deadline is six continuous hours after the 11:20 release on 5 July, i.e. 17:20, earlier than the 6 July 12:00 production; the notice actually arrived at 17:55, 35 minutes after it."
+    },
+    "expected": true,
+    "note": "Same replacement clock, deadline and arrival time as the reference, in other words."
+  },
+  {
+    "id": "complex_nda-justification-q27-lateness-send-time",
+    "kind": "justification",
+    "case": "complex_nda",
+    "context": "aspect: NDA compulsory disclosure Q-27",
+    "concept": "Q-27 notice lateness in minutes",
+    "candidate": {
+      "value": 0,
+      "justification": "The ban was lifted at 11:20 on 5 July, giving a deadline of 17:20 that day; the Recipient sent its notice at 17:10, ten minutes before it, so the notice was not late."
+    },
+    "expected": false,
+    "note": "Measures the notice at its sending time; Sections 2.4 and 6.2 measure it at actual arrival, 17:55, so it was 35 minutes late."
+  },
+  {
+    "id": "complex_nda-justification-shore-excluded-correct",
+    "kind": "justification",
+    "case": "complex_nda",
+    "context": "aspect: NDA information protection",
+    "concept": "Entire SHORE package excluded by prior possession",
+    "candidate": {
+      "value": false,
+      "justification": "Prior possession is proven only for the S-17 module of 28 January; the disclosed S-92 package adds a non-public branching map and thresholds, so the package as a whole is not excluded."
+    },
+    "expected": true,
+    "note": "Same component-versus-package reasoning as the reference, in other words."
+  },
+  {
+    "id": "complex_nda-justification-shore-excluded-component-as-whole",
+    "kind": "justification",
+    "case": "complex_nda",
+    "context": "aspect: NDA information protection",
+    "concept": "Entire SHORE package excluded by prior possession",
+    "candidate": {
+      "value": true,
+      "justification": "The Recipient's timestamped repository of 28 January predates the 20 February disclosure and holds the module that S-92 incorporates unchanged, which establishes prior possession and excludes SHORE from confidentiality."
+    },
+    "expected": false,
+    "note": "Treats prior possession of one component as an exclusion of the whole package, which Section 3.2 rejects; the new map and thresholds remain protected."
+  },
+  {
+    "id": "complex_dpa-justification-year-end-deletion-correct",
+    "kind": "justification",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Deletion deadline for year-end termination",
+    "candidate": {
+      "value": "2027-03-01",
+      "justification": "A5.1, in force since 1 October 2026, replaced the 90-day period with 60 days, which, counted from the day after the 31 December 2026 termination, run through January (31 days) and February (28 days) and end on 1 March 2027."
+    },
+    "expected": true,
+    "note": "Same period and day count as the reference, with the effective date of A5.1 added."
+  },
+  {
+    "id": "complex_dpa-justification-year-end-deletion-amendment-2-misread",
+    "kind": "justification",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Deletion deadline for year-end termination",
+    "candidate": {
+      "value": "2027-03-31",
+      "justification": "Amendment No. 2 applies A5.1's period only to terminations from 1 March 2027, so a 31 December 2026 termination keeps the 90 days of Section 12.1, ending on 31 March 2027."
+    },
+    "expected": false,
+    "note": "A5.1 has applied since 1 October 2026, and Amendment No. 2, not in force on 31 December 2026 and without retrospective effect, does not restrict it, so the period is 60 days."
+  },
+  {
+    "id": "complex_dpa-justification-ir27-lateness-correct",
+    "kind": "justification",
+    "case": "complex_dpa",
+    "context": "aspect: Incident IR-27",
+    "concept": "Initial notice lateness in minutes",
+    "candidate": {
+      "value": 50,
+      "justification": "The confirmed exposure of usable privileged credentials brings in the 12-hour expedited limit, which runs from the 17:10 verification of unauthorised access on 9 April, not from the 04:30 confirmation, so it expired at 05:10 on 10 April and the 06:00 notice was 50 minutes late."
+    },
+    "expected": true,
+    "note": "Same regime, clock start and arithmetic as the reference, in other words."
+  },
+  {
+    "id": "complex_dpa-justification-ir27-lateness-clock-from-confirmation",
+    "kind": "justification",
+    "case": "complex_dpa",
+    "context": "aspect: Incident IR-27",
+    "concept": "Initial notice lateness in minutes",
+    "candidate": {
+      "value": 0,
+      "justification": "The expedited 12-hour limit runs from the forensic confirmation of the credential exposure at 04:30 on 10 April, so it ends at 16:30, and the notice at 06:00 met it."
+    },
+    "expected": false,
+    "note": "B2.1 runs the expedited limit from the original awareness of the breach (9 April at 17:10), even if the credential exposure is confirmed later."
+  },
+  {
+    "id": "complex_dpa-justification-held-ord-deletion-correct",
+    "kind": "justification",
+    "case": "complex_dpa",
+    "context": "aspect: Retention TR-27",
+    "concept": "Held ORD records deletion deadline",
+    "candidate": {
+      "value": "2027-09-09",
+      "justification": "H-23 covers the same ORD records under the SALES alias, so they are released only when it ends on 25 August; ten Business Days from then, skipping weekends and the 30 August closure, end on 9 September, later than the ordinary deadline of 29 August."
+    },
+    "expected": true,
+    "note": "Same last hold, count and comparison with the ordinary deadline as the reference, in other words."
+  },
+  {
+    "id": "complex_dpa-justification-held-ord-deletion-alias-as-other-dataset",
+    "kind": "justification",
+    "case": "complex_dpa",
+    "context": "aspect: Retention TR-27",
+    "concept": "Held ORD records deletion deadline",
+    "candidate": {
+      "value": "2027-09-02",
+      "justification": "H-23 concerns the SALES dataset, so the ORD records are released when H-17 ends on 18 August; the tenth Business Day after that, excluding the 30 August closure, is 2 September, later than the ordinary deletion date of 29 August."
+    },
+    "expected": false,
+    "note": "R2.2 states that SALES is an alias of the same ORD records, so the last hold ends on 25 August and the deadline is 9 September."
+  },
+  {
+    "id": "complex_dpa-justification-lc27-total-correct",
+    "kind": "justification",
+    "case": "complex_dpa",
+    "context": "aspect: Liability LC-27",
+    "concept": "Total payable on new claims in EUR",
+    "candidate": {
+      "value": 2800000,
+      "justification": "L-1 is limited to the EUR 700,000 left in the ordinary pool, and L-2, counted once under the security cap, is paid in full (EUR 1,750,000) from the EUR 1,780,000 left after this Contract Year's EUR 500,000 security payment. The confidentiality losses L-3 (EUR 250,000) and L-4 (EUR 100,000) are uncapped, so EUR 2,800,000 is payable."
+    },
+    "expected": true,
+    "note": "Same allocation to the pools and the same total as the reference, in other words."
+  },
+  {
+    "id": "complex_dpa-justification-lc27-total-earlier-year-payment-deducted",
+    "kind": "justification",
+    "case": "complex_dpa",
+    "context": "aspect: Liability LC-27",
+    "concept": "Total payable on new claims in EUR",
+    "candidate": {
+      "value": 2430000,
+      "justification": "The security cap of EUR 2,280,000 is reduced by both earlier security payments, EUR 500,000 and EUR 400,000, leaving EUR 1,380,000 for L-2; adding EUR 700,000 for L-1 and the uncapped EUR 250,000 and EUR 100,000 confidentiality losses gives EUR 2,430,000."
+    },
+    "expected": false,
+    "note": "Deducts the EUR 400,000 paid for a February 2027 event, which falls in the preceding Contract Year and does not consume the current security pool (B5.2)."
+  },
+  {
+    "id": "complex_mcu-justification-dr115-tj-correct",
+    "kind": "justification",
+    "case": "complex_mcu",
+    "context": "document",
+    "concept": "DR-115 junction temperature in °C",
+    "candidate": {
+      "value": 100,
+      "justification": "In VOS0 at 432 MHz, IDD is 156 mA plus the ADC1 (4.6 mA), SPI2 (0.9 mA), USART2 (0.6 mA) and I2C1 (0.4 mA) adders, i.e. 162.5 mA; with the highest VDD of 3.366 V and 38 mW of PIO, PD is about 0.585 W, and the 1s θJA of 52 °C/W of the two-layer board gives Tj = 70 + 52 × 0.585 ≈ 100 °C."
+    },
+    "expected": true,
+    "note": "Same current, power and thermal resistance as the reference, in other words."
+  },
+  {
+    "id": "complex_mcu-justification-dr115-tj-2s2p-board",
+    "kind": "justification",
+    "case": "complex_mcu",
+    "context": "document",
+    "concept": "DR-115 junction temperature in °C",
+    "candidate": {
+      "value": 88,
+      "justification": "IDD = 162.5 mA and PD = 3.366 V × 162.5 mA + 38 mW ≈ 585 mW; as the exposed pad is soldered to a copper area with thermal vias, the 2s2p θJA of 31 °C/W applies, so Tj = 70 + 31 × 0.585 ≈ 88 °C."
+    },
+    "expected": false,
+    "note": "The board has two layers and no internal planes, so Section 8.2 requires the 1s θJA of 52 °C/W; thermal vias do not make it a 2s2p board."
+  },
+  {
+    "id": "complex_mcu-justification-dr114-wait-states-correct",
+    "kind": "justification",
+    "case": "complex_mcu",
+    "context": "aspect: DR-114 clock configuration",
+    "concept": "DR-114 required flash wait states",
+    "candidate": {
+      "value": 3,
+      "justification": "With a 25 MHz crystal, DIVM1 = 5, N1 = 140 and P1 = 2, SYSCLK is 350 MHz and HCLK (HPRE = 2) 175 MHz; DC-2 lowers the VOS1 limit for 2 wait states to 165 MHz, so 3 wait states are required."
+    },
+    "expected": true,
+    "note": "Same clocks and the same DC-2 correction as the reference, in other words."
+  },
+  {
+    "id": "complex_mcu-justification-dr114-wait-states-uncorrected-table",
+    "kind": "justification",
+    "case": "complex_mcu",
+    "context": "aspect: DR-114 clock configuration",
+    "concept": "DR-114 required flash wait states",
+    "candidate": {
+      "value": 2,
+      "justification": "SYSCLK = 25 / 5 × 140 / 2 = 350 MHz, so HCLK is 175 MHz in VOS1, and Table 14 allows 2 wait states up to 185 MHz in VOS1; the configured LATENCY = 2 is therefore enough."
+    },
+    "expected": false,
+    "note": "Uses the uncorrected Table 14: DC-2 of the errata sheet limits 2 wait states in VOS1 to 165 MHz, so 175 MHz needs 3."
+  },
+  {
+    "id": "complex_mcu-justification-ltb-date-correct",
+    "kind": "justification",
+    "case": "complex_mcu",
+    "context": "aspect: Revision B end of life",
+    "concept": "Halyard last-time-buy date for revision B",
+    "candidate": {
+      "value": "2026-10-13",
+      "justification": "Ninety calendar days after the 15 June 2026 PCN is 13 September 2026; Halyard registered its forecast on 29 July, by the 31 July cut-off, so PCN-2611-A1 extends its LTB date by 30 days to 13 October 2026."
+    },
+    "expected": true,
+    "note": "Same base date, forecast condition and extension as the reference, in other words."
+  },
+  {
+    "id": "complex_mcu-justification-ltb-date-revised-forecast",
+    "kind": "justification",
+    "case": "complex_mcu",
+    "context": "aspect: Revision B end of life",
+    "concept": "Halyard last-time-buy date for revision B",
+    "candidate": {
+      "value": "2026-09-13",
+      "justification": "Halyard's revised forecast was only sent on 5 August, after the 31 July cut-off of PCN-2611-A1, so the extension does not apply and the LTB date stays 90 days after 15 June 2026, i.e. 13 September 2026."
+    },
+    "expected": false,
+    "note": "The forecast was registered on 29 July (P-1); the later revision does not undo that registration, so the 30-day extension applies."
+  },
+  {
+    "id": "complex_mcu-justification-dr114-errata-correct",
+    "kind": "justification",
+    "case": "complex_mcu",
+    "context": "aspect: DR-114 errata and firmware",
+    "concept": "Errata applicable to the DR-114 production boards",
+    "candidate": {
+      "value": [
+        "ES-04",
+        "ES-05",
+        "ES-08"
+      ],
+      "justification": "The production lot P2 devices are marked Y, i.e. revision C, which has ES-04, ES-05, ES-08 and ES-09; sampling at 2.4 Msps with VDDA under 2.0 V, OVER8 = 1 with the receiver timeout, and TDC with bus-off recovery meet the first three, while ES-09 needs BOR level 3 and level 0 is selected."
+    },
+    "expected": true,
+    "note": "Same revision, errata and conditions as the reference, in other words."
+  },
+  {
+    "id": "complex_mcu-justification-dr114-errata-prototype-marking",
+    "kind": "justification",
+    "case": "complex_mcu",
+    "context": "aspect: DR-114 errata and firmware",
+    "concept": "Errata applicable to the DR-114 production boards",
+    "candidate": {
+      "value": [
+        "ES-04",
+        "ES-05"
+      ],
+      "justification": "The DR-114 devices are marked B 2611, revision B, which has no ES-08; of its errata, the 2.4 Msps sampling at VDDA below 2.0 V meets ES-04 and OVER8 = 1 with the receiver timeout meets ES-05, while the PLL, SYSCLK, SPI and BOR settings avoid ES-02, ES-03, ES-07 and ES-09."
+    },
+    "expected": false,
+    "note": "Takes the B 2611 marking of prototype lot P1; the production lot P2 under review is marked Y 2636, revision C, where ES-08 is present and its conditions are met."
+  },
+  {
+    "id": "complex_mcu-justification-dr114-hdr7-correct",
+    "kind": "justification",
+    "case": "complex_mcu",
+    "context": "aspect: DR-114 thermal assessment",
+    "concept": "DR-114 meets HDR-7",
+    "candidate": {
+      "value": false,
+      "justification": "The TSV7H8LX is a grade X device with a Tj max of 125 °C, and the datasheet method gives about 108 °C, a margin of roughly 17 °C, short of the 20 °C that HDR-7 demands."
+    },
+    "expected": true,
+    "note": "Same grade, computed Tj and margin as the reference, in other words."
+  },
+  {
+    "id": "complex_mcu-justification-dr114-hdr7-sensor-reading",
+    "kind": "justification",
+    "case": "complex_mcu",
+    "context": "aspect: DR-114 thermal assessment",
+    "concept": "DR-114 meets HDR-7",
+    "candidate": {
+      "value": true,
+      "justification": "The on-chip sensor read 104 °C at a 95 °C ambient after an hour at full load, 21 °C below the 125 °C Tj max of grade X, so the 20 °C margin of HDR-7 is met."
+    },
+    "expected": false,
+    "note": "HDR-7 applies to the Tj computed with the datasheet method (about 108 °C), not to a sensor reading on a prototype board; the margin is about 17 °C."
+  },
+  {
+    "id": "complex_nda-field-talus-role-paraphrase",
+    "kind": "field",
+    "case": "complex_nda",
+    "context": "document",
+    "concept": "NDA signatory entities",
+    "candidate": {
+      "object": "Talus Ventures AB",
+      "field": "role",
+      "value": "Receiving party"
+    },
+    "expected": true,
+    "note": "The receiving party is the role that Section 1.1 calls the Recipient."
+  },
+  {
+    "id": "complex_nda-field-talus-role-swapped",
+    "kind": "field",
+    "case": "complex_nda",
+    "context": "document",
+    "concept": "NDA signatory entities",
+    "candidate": {
+      "object": "Talus Ventures AB",
+      "field": "role",
+      "value": "Discloser"
+    },
+    "expected": false,
+    "note": "Talus Ventures AB is the Recipient; FjordSignal AS is the Discloser."
+  },
+  {
+    "id": "complex_dpa-field-baltika-service-paraphrase",
+    "kind": "field",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Approved sub-processors as of 1 February 2027",
+    "candidate": {
+      "object": "Baltika Analytics UAB",
+      "field": "service",
+      "value": "Aggregating and monitoring logs"
+    },
+    "expected": true,
+    "note": "Same service as Annex 3 describes, in other words."
+  },
+  {
+    "id": "complex_dpa-field-baltika-service-customer-analytics",
+    "kind": "field",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Approved sub-processors as of 1 February 2027",
+    "candidate": {
+      "object": "Baltika Analytics UAB",
+      "field": "service",
+      "value": "Analytics of customer interaction data"
+    },
+    "expected": false,
+    "note": "Annex 3 gives Baltika's service as log aggregation and monitoring; customer interaction analytics is the Processor's own platform, suggested only by the entity's name."
+  },
+  {
+    "id": "complex_dpa-field-dagmar-country-paraphrase",
+    "kind": "field",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Approved sub-processors as of 1 February 2027",
+    "candidate": {
+      "object": "Dagmar Backup ApS",
+      "field": "country",
+      "value": "Kingdom of Denmark"
+    },
+    "expected": true,
+    "note": "The official name of the same country."
+  },
+  {
+    "id": "complex_dpa-field-dagmar-country-germany",
+    "kind": "field",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Approved sub-processors as of 1 February 2027",
+    "candidate": {
+      "object": "Dagmar Backup ApS",
+      "field": "country",
+      "value": "Germany"
+    },
+    "expected": false,
+    "note": "Dagmar Backup ApS is registered in Denmark; Germany is the Processor's country and the site of a later draft backup proposal."
+  },
+  {
+    "id": "complex_dpa-field-cendrillon-service-paraphrase",
+    "kind": "field",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Approved sub-processors as of 1 February 2027",
+    "candidate": {
+      "object": "Cendrillon Mail SAS",
+      "field": "service",
+      "value": "Delivery of transactional emails"
+    },
+    "expected": true,
+    "note": "Same service as A4.2 describes, in other words."
+  },
+  {
+    "id": "complex_dpa-field-cendrillon-service-marketing",
+    "kind": "field",
+    "case": "complex_dpa",
+    "context": "document",
+    "concept": "Approved sub-processors as of 1 February 2027",
+    "candidate": {
+      "object": "Cendrillon Mail SAS",
+      "field": "service",
+      "value": "Delivery of marketing email campaigns"
+    },
+    "expected": false,
+    "note": "A4.2 describes Cendrillon's service as transactional email delivery, not marketing email."
+  },
+  {
+    "id": "complex_mcu-field-es04-function-paraphrase",
+    "kind": "field",
+    "case": "complex_mcu",
+    "context": "aspect: Device limitations of revision C",
+    "concept": "Limitations present in revision C",
+    "candidate": {
+      "object": "ES-04",
+      "field": "function",
+      "value": "Analog-to-digital converter (ADC)"
+    },
+    "expected": true,
+    "note": "Spells out the ADC that the errata sheet names as the affected function."
+  },
+  {
+    "id": "complex_mcu-field-es04-function-dac",
+    "kind": "field",
+    "case": "complex_mcu",
+    "context": "aspect: Device limitations of revision C",
+    "concept": "Limitations present in revision C",
+    "candidate": {
+      "object": "ES-04",
+      "field": "function",
+      "value": "DAC"
+    },
+    "expected": false,
+    "note": "ES-04 affects the INL of ADC1 and ADC2; the DAC is a different peripheral."
+  },
+  {
+    "id": "complex_stability-value-root-cause-paraphrase",
+    "kind": "value",
+    "case": "complex_stability",
+    "context": "aspect: Results outside the shelf-life specification",
+    "concept": "Root cause of the results of V20-2604 outside the shelf-life specification",
+    "candidate": {
+      "values": [
+        "Moisture got through the PVC film of the blister at high humidity, raising the water content of the tablets and with it the hydrolysis product impurity D."
+      ]
+    },
+    "expected": true,
+    "note": "The root cause of 5.3 in other words."
+  },
+  {
+    "id": "complex_stability-value-root-cause-laboratory-error",
+    "kind": "value",
+    "case": "complex_stability",
+    "context": "aspect: Results outside the shelf-life specification",
+    "concept": "Root cause of the results of V20-2604 outside the shelf-life specification",
+    "candidate": {
+      "values": [
+        "A laboratory error in the sample preparation for the 6-month test."
+      ]
+    },
+    "expected": false,
+    "note": "5.2 excludes a laboratory error; the root cause is moisture ingress."
+  },
+  {
+    "id": "complex_stability-value-storage-statement-paraphrase",
+    "kind": "value",
+    "case": "complex_stability",
+    "context": "aspect: Shelf-life rules and proposal",
+    "concept": "Storage statement of the PVC/Alu blister",
+    "candidate": {
+      "values": [
+        "Do not store above 25 °C, and keep in the original package to protect from moisture."
+      ]
+    },
+    "expected": true,
+    "note": "The statement of Table 12 with the same temperature and the same protection, in other words."
+  },
+  {
+    "id": "complex_stability-value-storage-statement-other-pack",
+    "kind": "value",
+    "case": "complex_stability",
+    "context": "aspect: Shelf-life rules and proposal",
+    "concept": "Storage statement of the PVC/Alu blister",
+    "candidate": {
+      "values": [
+        "Do not store above 30 °C. Store in the original package in order to protect from moisture."
+      ]
+    },
+    "expected": false,
+    "note": "30 °C is the limit of the bottle and the Alu/Alu blister; the PVC/Alu blister is not to be stored above 25 °C."
+  },
+  {
+    "id": "complex_stability-justification-total-impurities-correct",
+    "kind": "justification",
+    "case": "complex_stability",
+    "context": "aspect: Stability results of V20-2604",
+    "concept": "Total impurities of V20-2604 after 6 months at the accelerated condition in %",
+    "candidate": {
+      "value": 1.12,
+      "justification": "The table of V20-2604 at 40 °C/75 % RH gives 1.12 % of total impurities in its 6-month column."
+    },
+    "expected": true,
+    "note": "Same table and column as the reference, in other words."
+  },
+  {
+    "id": "complex_stability-justification-total-impurities-wrong-table",
+    "kind": "justification",
+    "case": "complex_stability",
+    "context": "aspect: Stability results of V20-2604",
+    "concept": "Total impurities of V20-2604 after 6 months at the accelerated condition in %",
+    "candidate": {
+      "value": 1.12,
+      "justification": "Table 7, the long-term condition of V20-2604, gives 1.12 % of total impurities at 6 months."
+    },
+    "expected": false,
+    "note": "Table 7 is the long-term table, which gives 0.20 % at 6 months; 1.12 % is in Table 8, the accelerated condition."
+  },
+  {
+    "id": "complex_stability-justification-count-correct",
+    "kind": "justification",
+    "case": "complex_stability",
+    "context": "aspect: Results outside the shelf-life specification",
+    "concept": "Number of results outside the shelf-life specification",
+    "candidate": {
+      "value": 5,
+      "justification": "At 40 °C/75 % RH, V20-2604 exceeds the water content limit at 3 and 6 months and the impurity D and total impurities limits at 6 months, and V20-2607 exceeds the impurity D limit at 6 months."
+    },
+    "expected": true,
+    "note": "The same five results as the reference, in other words."
+  },
+  {
+    "id": "complex_stability-justification-count-wrong-results",
+    "kind": "justification",
+    "case": "complex_stability",
+    "context": "aspect: Results outside the shelf-life specification",
+    "concept": "Number of results outside the shelf-life specification",
+    "candidate": {
+      "value": 5,
+      "justification": "V20-2604 at 40 °C/75 % RH fails water content, impurity D, total impurities and dissolution (79 %) at 6 months, and V20-2607 fails impurity D at 6 months."
+    },
+    "expected": false,
+    "note": "A dissolution of 79 % meets the shelf-life limit of 75 %, and the 3-month water content of 4.4 % of V20-2604 is left out: right count, wrong results."
+  },
+  {
+    "id": "complex_stability-justification-alu-shelf-life-correct",
+    "kind": "justification",
+    "case": "complex_stability",
+    "context": "document",
+    "concept": "Shelf life supported for the Alu/Alu blister by the rules of section 6 in months",
+    "candidate": {
+      "value": 12,
+      "justification": "V20-2607, the Alu/Alu batch, has 0.31 % of impurity D at 6 months at 40 °C/75 % RH, above the 0.30 % limit, which is a significant change; without intermediate data, 6.3 keeps the shelf life to the 12 months of long-term data."
+    },
+    "expected": true,
+    "note": "Same result, rule and period as the reference, in other words."
+  },
+  {
+    "id": "complex_stability-justification-alu-shelf-life-wrong-cause",
+    "kind": "justification",
+    "case": "complex_stability",
+    "context": "document",
+    "concept": "Shelf life supported for the Alu/Alu blister by the rules of section 6 in months",
+    "candidate": {
+      "value": 12,
+      "justification": "The assay of V20-2607 falls by more than 5 % at 40 °C/75 % RH, a significant change, so 6.3 limits the shelf life to the 12 months of long-term data."
+    },
+    "expected": false,
+    "note": "The assay of V20-2607 falls by 2.2 % only; the significant change is its impurity D of 0.31 %."
+  },
+  {
+    "id": "complex_stability-justification-significant-change-correct",
+    "kind": "justification",
+    "case": "complex_stability",
+    "context": "document",
+    "concept": "Batches with a significant change at the accelerated condition",
+    "candidate": {
+      "value": [
+        "V20-2604",
+        "V20-2607"
+      ],
+      "justification": "V20-2604 exceeds the water content limit from 3 months, and the impurity D and total impurities limits at 6 months; V20-2607 exceeds the impurity D limit at 6 months; V20-2601 stays within the shelf-life specification."
+    },
+    "expected": true,
+    "note": "Same results as the reference, in other words."
+  },
+  {
+    "id": "complex_stability-justification-significant-change-wrong-fact",
+    "kind": "justification",
+    "case": "complex_stability",
+    "context": "document",
+    "concept": "Batches with a significant change at the accelerated condition",
+    "candidate": {
+      "value": [
+        "V20-2604",
+        "V20-2607"
+      ],
+      "justification": "Both V20-2604 and V20-2607 exceed the total impurities limit of 1.00 % at 6 months at 40 °C/75 % RH."
+    },
+    "expected": false,
+    "note": "V20-2607 has 0.52 % of total impurities at 6 months; its significant change is impurity D."
+  },
+  {
+    "id": "complex_stability-justification-rule-correct",
+    "kind": "justification",
+    "case": "complex_stability",
+    "context": "aspect: Shelf-life rules and proposal",
+    "concept": "Rule that gives the proposed shelf life of the PVC/Alu blister",
+    "candidate": {
+      "value": [
+        "6.2"
+      ],
+      "justification": "18 months is one and a half times the 12 months of long-term data, which 6.2 allows when there is a significant change at the accelerated condition only."
+    },
+    "expected": true,
+    "note": "Same arithmetic and rule as the reference, in other words."
+  },
+  {
+    "id": "complex_stability-justification-rule-wrong-condition",
+    "kind": "justification",
+    "case": "complex_stability",
+    "context": "aspect: Shelf-life rules and proposal",
+    "concept": "Rule that gives the proposed shelf life of the PVC/Alu blister",
+    "candidate": {
+      "value": [
+        "6.2"
+      ],
+      "justification": "6.2 applies because the samples of V20-2604 at the intermediate condition showed a significant change."
+    },
+    "expected": false,
+    "note": "A significant change at the intermediate condition would bring 6.3; 6.2 applies because there is none there."
+  },
+  {
+    "id": "language-ja-justification",
+    "kind": "language",
+    "required": "ja",
+    "text": "改正後の第2条により、契約期間は署名日から5年間となり、当初の3年間の定めは変更されている。",
+    "expected": true,
+    "note": "Japanese, with kana and kanji."
+  },
+  {
+    "id": "language-ja-quoted-german",
+    "kind": "language",
+    "required": "ja",
+    "text": "準拠法はドイツ法（deutsches Recht）であり、専属的合意管轄はミュンヘンの裁判所である。",
+    "expected": true,
+    "note": "Japanese that quotes the German words of the document, which do not count."
+  },
+  {
+    "id": "language-ja-chinese",
+    "kind": "language",
+    "required": "ja",
+    "text": "根据修订后的第2条，合同期限为自签署之日起五年，原定的三年期限已被变更。",
+    "expected": false,
+    "note": "Chinese, which shares the Han characters."
+  },
+  {
+    "id": "language-ja-korean",
+    "kind": "language",
+    "required": "ja",
+    "text": "개정된 제2조에 따라 계약 기간은 서명일로부터 5년이다.",
+    "expected": false,
+    "note": "Korean."
+  },
+  {
+    "id": "language-ja-english",
+    "kind": "language",
+    "required": "ja",
+    "text": "The French amendment extends the term to five years from signature, replacing the three years of § 2.",
+    "expected": false,
+    "note": "English."
+  },
+  {
+    "id": "language-zh-hans-justification",
+    "kind": "language",
+    "required": "zh-Hans",
+    "text": "根据修订后的第2条，合同期限为自签署之日起五年，原定的三年期限已被变更。",
+    "expected": true,
+    "note": "Chinese in Simplified characters."
+  },
+  {
+    "id": "language-zh-hans-traditional",
+    "kind": "language",
+    "required": "zh-Hans",
+    "text": "根據修訂後的第2條，合同期限為自簽署之日起五年，原定的三年期限已被變更。",
+    "expected": false,
+    "note": "The same sentence in Traditional characters (根據, 條, 為, 簽署, 變更)."
+  },
+  {
+    "id": "language-zh-hans-value",
+    "kind": "language",
+    "required": "zh-Hans",
+    "text": "德国法；慕尼黑法院",
+    "expected": true,
+    "note": "A short value in Simplified characters."
+  },
+  {
+    "id": "language-zh-hans-value-traditional",
+    "kind": "language",
+    "required": "zh-Hans",
+    "text": "德國法；慕尼黑法院",
+    "expected": false,
+    "note": "The same value in Traditional characters (國)."
+  },
+  {
+    "id": "language-zh-hant-justification",
+    "kind": "language",
+    "required": "zh-Hant",
+    "text": "根據修訂後的第2條，合同期限為自簽署之日起五年，原定的三年期限已被變更。",
+    "expected": true,
+    "note": "Chinese in Traditional characters."
+  },
+  {
+    "id": "language-zh-hant-simplified",
+    "kind": "language",
+    "required": "zh-Hant",
+    "text": "根据修订后的第2条，合同期限为自签署之日起五年，原定的三年期限已被变更。",
+    "expected": false,
+    "note": "The same sentence in Simplified characters (根据, 条, 为, 签署, 变更)."
+  },
+  {
+    "id": "language-zh-hant-value",
+    "kind": "language",
+    "required": "zh-Hant",
+    "text": "德國法；慕尼黑法院",
+    "expected": true,
+    "note": "A short value in Traditional characters."
+  },
+  {
+    "id": "language-zh-hant-japanese",
+    "kind": "language",
+    "required": "zh-Hant",
+    "text": "改正後の第2条により、契約期間は署名日から5年間となり、当初の3年間の定めは変更されている。",
+    "expected": false,
+    "note": "Japanese, which shares the Han characters."
+  },
+  {
+    "id": "language-pt-br-justification",
+    "kind": "language",
+    "required": "pt-BR",
+    "text": "Pelo aditivo, o contrato vigora por cinco anos a partir da assinatura. O fornecedor arca com o ônus econômico do frete, e o registro da alteração deve ser feito pelo contato da distribuidora.",
+    "expected": true,
+    "note": "Brazilian Portuguese: aditivo, a partir de, ônus, econômico, registro, contato."
+  },
+  {
+    "id": "language-pt-br-european",
+    "kind": "language",
+    "required": "pt-BR",
+    "text": "Pela adenda, o contrato vigora por cinco anos a contar da assinatura. O fornecedor suporta o ónus económico do frete, e o registo da alteração deve ser feito pelo contacto da distribuidora.",
+    "expected": false,
+    "note": "European Portuguese: adenda, a contar de, ónus, económico, registo, contacto."
+  },
+  {
+    "id": "language-pt-pt-justification",
+    "kind": "language",
+    "required": "pt-PT",
+    "text": "Pela adenda, o contrato vigora por cinco anos a contar da assinatura. O fornecedor suporta o ónus económico do frete, e o registo da alteração deve ser feito pelo contacto da distribuidora.",
+    "expected": true,
+    "note": "European Portuguese: adenda, a contar de, ónus, económico, registo, contacto."
+  },
+  {
+    "id": "language-pt-pt-brazilian",
+    "kind": "language",
+    "required": "pt-PT",
+    "text": "Pelo aditivo, o contrato vigora por cinco anos a partir da assinatura. O fornecedor arca com o ônus econômico do frete, e o registro da alteração deve ser feito pelo contato da distribuidora.",
+    "expected": false,
+    "note": "Brazilian Portuguese: aditivo, a partir de, ônus, econômico, registro, contato."
+  },
+  {
+    "id": "language-pt-pt-neutral-value",
+    "kind": "language",
+    "required": "pt-PT",
+    "text": "Lei alemã; foro de Munique",
+    "expected": true,
+    "note": "Written the same in both variants, so it is European Portuguese too."
+  },
+  {
+    "id": "language-pt-pt-spanish",
+    "kind": "language",
+    "required": "pt-PT",
+    "text": "Según la adenda, el contrato tiene una duración de cinco años desde la firma.",
+    "expected": false,
+    "note": "Spanish."
+  },
+  {
+    "id": "language-de-justification",
+    "kind": "language",
+    "required": "de",
+    "text": "Durch den Nachtrag gilt der Vertrag nun fünf Jahre ab Unterzeichnung statt der ursprünglich vereinbarten drei Jahre.",
+    "expected": true,
+    "note": "German."
+  },
+  {
+    "id": "language-de-dutch",
+    "kind": "language",
+    "required": "de",
+    "text": "Door het addendum geldt de overeenkomst nu vijf jaar vanaf de ondertekening in plaats van de oorspronkelijk overeengekomen drie jaar.",
+    "expected": false,
+    "note": "Dutch."
+  },
+  {
+    "id": "language-de-french",
+    "kind": "language",
+    "required": "de",
+    "text": "L'avenant porte la durée du contrat à cinq ans à compter de la signature.",
+    "expected": false,
+    "note": "French, the language of the amendment."
+  },
+  {
+    "id": "language-en-justification",
+    "kind": "language",
+    "required": "en",
+    "text": "The French amendment extends the term to five years from signature, replacing the three years of § 2.",
+    "expected": true,
+    "note": "English, with a section sign of the document."
+  },
+  {
+    "id": "language-en-german",
+    "kind": "language",
+    "required": "en",
+    "text": "Durch den Nachtrag gilt der Vertrag nun fünf Jahre ab Unterzeichnung statt der ursprünglich vereinbarten drei Jahre.",
+    "expected": false,
+    "note": "German, the main language of the document."
+  },
+  {
+    "id": "complex_multilingual-value-law-ja",
+    "kind": "value",
+    "case": "complex_multilingual",
+    "context": "document",
+    "concept": "Governing law and jurisdiction",
+    "candidate_language": "ja",
+    "candidate": {
+      "values": [
+        "ドイツ法（国際物品売買契約に関する国際連合条約（CISG）の適用を除く）。リンデンフルトの裁判所が専属的管轄権を有する。"
+      ]
+    },
+    "expected": true,
+    "note": "The reference answer in Japanese."
+  },
+  {
+    "id": "complex_multilingual-value-law-ja-cisg",
+    "kind": "value",
+    "case": "complex_multilingual",
+    "context": "document",
+    "concept": "Governing law and jurisdiction",
+    "candidate_language": "ja",
+    "candidate": {
+      "values": [
+        "ドイツ法（CISGを含む）。リンデンフルトの裁判所が専属的管轄権を有する。"
+      ]
+    },
+    "expected": false,
+    "note": "Japanese that includes the CISG, which the agreement excludes."
+  },
+  {
+    "id": "complex_multilingual-value-prevailing-zh-hant",
+    "kind": "value",
+    "case": "complex_multilingual",
+    "context": "document",
+    "concept": "Prevailing text between the agreement and Annex 1",
+    "candidate_language": "zh-Hant",
+    "candidate": {
+      "values": [
+        "德文協議優先，但技術資料及價目表價格以附件1為準。"
+      ]
+    },
+    "expected": true,
+    "note": "The reference answer in Traditional Chinese."
+  },
+  {
+    "id": "complex_multilingual-value-prevailing-zh-hant-annex",
+    "kind": "value",
+    "case": "complex_multilingual",
+    "context": "document",
+    "concept": "Prevailing text between the agreement and Annex 1",
+    "candidate_language": "zh-Hant",
+    "candidate": {
+      "values": [
+        "附件1在所有事項上均優先於德文協議。"
+      ]
+    },
+    "expected": false,
+    "note": "Traditional Chinese that follows the annex's own claim of precedence."
+  },
+  {
+    "id": "complex_multilingual-value-amendment-ja",
+    "kind": "value",
+    "case": "complex_multilingual",
+    "context": "document",
+    "concept": "Changes made by Amendment No. 1",
+    "candidate_language": "ja",
+    "candidate": {
+      "values": [
+        "2028年1月1日からベルギーを独占販売地域に加え、ルクセンブルクでの非独占的販売を認める。2028年の最低購入数量を25％減らし、2028年3月1日以降の納品についてはFCAリンデンフルトに代えて販売店のベルリーヴ＝シュル＝エルドル倉庫でのDAP引渡しとし、危険はそこで移転する。"
+      ]
+    },
+    "expected": true,
+    "note": "The reference answer in Japanese."
+  },
+  {
+    "id": "complex_multilingual-value-amendment-ja-partial",
+    "kind": "value",
+    "case": "complex_multilingual",
+    "context": "document",
+    "concept": "Changes made by Amendment No. 1",
+    "candidate_language": "ja",
+    "candidate": {
+      "values": [
+        "2028年1月1日からベルギーを独占販売地域に加え、2028年の最低購入数量を25％削減する。"
+      ]
+    },
+    "expected": false,
+    "note": "Japanese that leaves out the change of the delivery terms and of the risk."
+  },
+  {
+    "id": "complex_multilingual-value-risk-pt-pt",
+    "kind": "value",
+    "case": "complex_multilingual",
+    "context": "aspect: Delivery and transport risk",
+    "concept": "Passing of the transport risk",
+    "candidate_language": "pt-PT",
+    "candidate": {
+      "values": [
+        "Para entregas antes de 1 de março de 2028, o risco passa para o Distribuidor com a entrega ao seu transportador na fábrica de Lindenfurt (FCA); a partir de 1 de março de 2028, o Fabricante suporta o risco até as mercadorias serem colocadas à disposição, prontas para descarga, no armazém do Distribuidor em Bellerive-sur-Erdre (DAP)."
+      ]
+    },
+    "expected": true,
+    "note": "The reference answer in European Portuguese."
+  },
+  {
+    "id": "complex_multilingual-value-risk-pt-pt-fca",
+    "kind": "value",
+    "case": "complex_multilingual",
+    "context": "aspect: Delivery and transport risk",
+    "concept": "Passing of the transport risk",
+    "candidate_language": "pt-PT",
+    "candidate": {
+      "values": [
+        "O risco passa para o Distribuidor com a entrega ao transportador na fábrica de Lindenfurt (FCA), em todas as entregas, incluindo as posteriores a 1 de março de 2028."
+      ]
+    },
+    "expected": false,
+    "note": "European Portuguese that misses the amendment's DAP from 1 March 2028."
+  },
+  {
+    "id": "complex_multilingual-justification-spare-parts-zh-hans",
+    "kind": "justification",
+    "case": "complex_multilingual",
+    "context": "aspect: Warranty and product performance",
+    "concept": "Spare parts supply period",
+    "candidate_language": "zh-Hans",
+    "candidate": {
+      "value": "各合同产品系列批量生产结束后10年",
+      "justification": "协议第6.6条就期限援引附件1，附件1第3.2点规定制造商须在各系列批量生产结束后10年内供应备件。"
+    },
+    "expected": true,
+    "note": "The reference answer and reasoning in Simplified Chinese."
+  },
+  {
+    "id": "complex_multilingual-justification-spare-parts-zh-hans-delivery",
+    "kind": "justification",
+    "case": "complex_multilingual",
+    "context": "aspect: Warranty and product performance",
+    "concept": "Spare parts supply period",
+    "candidate_language": "zh-Hans",
+    "candidate": {
+      "value": "交货后5年",
+      "justification": "协议第6.6条规定制造商须在交货后5年内供应备件。"
+    },
+    "expected": false,
+    "note": "Simplified Chinese with a wrong period, counted from delivery."
+  },
+  {
+    "id": "complex_multilingual-justification-shortfall-de",
+    "kind": "justification",
+    "case": "complex_multilingual",
+    "context": "aspect: Territory and minimum purchases",
+    "concept": "Consequence of a minimum purchase shortfall",
+    "candidate_language": "de",
+    "candidate": {
+      "value": "Der Hersteller kann die Exklusivität mit einer Frist von drei Monaten schriftlich widerrufen; der Vertrag läuft dann nicht exklusiv weiter, weitere Rechte oder Ansprüche hat er nicht.",
+      "justification": "§ 3.3 erlaubt dem Hersteller, die Exklusivität nach § 2.2 mit dreimonatiger Frist schriftlich zu widerrufen, und schließt alle weiteren Rechte und Ansprüche wegen der Unterschreitung aus."
+    },
+    "expected": true,
+    "note": "The reference answer and reasoning in German, as with adapt."
+  },
+  {
+    "id": "complex_multilingual-justification-shortfall-de-termination",
+    "kind": "justification",
+    "case": "complex_multilingual",
+    "context": "aspect: Territory and minimum purchases",
+    "concept": "Consequence of a minimum purchase shortfall",
+    "candidate_language": "de",
+    "candidate": {
+      "value": "Der Hersteller kann den Vertrag fristlos kündigen und Schadensersatz verlangen.",
+      "justification": "§ 3.3 gibt dem Hersteller bei einer Unterschreitung ein Recht zur fristlosen Kündigung und zum Schadensersatz."
+    },
+    "expected": false,
+    "note": "German that gives the termination and the damages that 3.3 excludes."
+  }
+]
